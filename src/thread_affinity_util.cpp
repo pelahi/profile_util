@@ -107,7 +107,7 @@ namespace profiling_util {
             cpuset_to_cstr(&coremask, clbuf);
             result = "\t On node " + std::string(hnbuf) + " : ";
     #ifdef _MPI
-            result += "MPI Rank " + std::to_string(ThisTask + " : ");
+            result += "MPI Rank " + std::to_string(ThisTask) + " : ";
     #endif
     #ifdef _OPENMP
             auto thread = omp_get_thread_num();
@@ -161,7 +161,7 @@ namespace profiling_util {
         (void)gethostname(hnbuf, sizeof(hnbuf));
         result = where;
         result += "::\t On node " + std::string(hnbuf) + " : ";
-        result += "MPI Rank " + std::to_string(ThisTask + " : ");
+        result += "MPI Rank " + std::to_string(ThisTask) + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
         cpuset_to_cstr(&coremask, clbuf);
         int thread = 0;
