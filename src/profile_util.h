@@ -17,10 +17,35 @@
 #include <unistd.h>
 #include <sys/sysinfo.h>
 
+#ifdef _MPI
+#include <mpi.h>
+#endif 
+
+#ifdef _OPENMP 
+#include <omp.h>
+#endif
+
 namespace profiling_util {
 
+    /// function that converts the mask of thread affinity to human readable string 
     void cpuset_to_cstr(cpu_set_t *mask, char *str);
-    std::string ReportThreadAffinity();
+    /// reports the parallelAPI 
+    /// @return string of MPI comm size and OpenMP version and max threads for given rank
+    /// \todo needs to be generalized to report parallel API of code and not library
+    std::string ReportParallelAPI();
+    /// reports binding of MPI comm world and each ranks thread affinity 
+    /// @return string of MPI comm rank and thread core affinity 
+    std::string ReportBinding();
+    /// reports thread affinity within a given scope, thus depends if called within OMP region 
+    /// @param where string of location where called in code, useful to provide __func__ and __LINE
+    /// @return string of thread core affinity 
+    std::string ReportThreadAffinity(std::string where);
+#ifdef _MPI
+    /// reports thread affinity within a given scope, thus depends if called within OMP region, MPI aware
+    /// @param where string of location where called in code, useful to provide __func__ and __LINE
+    /// @return string of MPI comm rank and thread core affinity 
+    std::string MPIReportThreadAffinity(std::string where);
+#endif
 
     namespace detail {
 

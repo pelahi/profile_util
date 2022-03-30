@@ -66,21 +66,33 @@ namespace profiling_util {
         ptr = nullptr;
     }
 
-    std::string ReportThreadAffinity()
+    std::string ReportParallelAPI() 
+    {
+        std::string s;
+#ifdef _MPI
+        int rank, size;
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        s += "MPI Comm world size " + std::to_string(size);
+        s += "\n";
+#endif 
+#ifdef _OPENMP 
+        s += "OpenMP version " + std::to_string(_OPENMP);
+        s += " with total number of threads = " + std::to_string(omp_get_max_threads());
+        s += "\n";
+#endif
+        return s;
+    }
+
+    std::string ReportBinding()
     {
         std::string binding_report;
-        // if there is no MPI and no OMP do not report any binding
-#if !defined(_MPI) && !defined(_OPENMP)
-        binding_report = "Serial code, binding uninformative \n ";
-        return binding_report;
-#endif
-
         int ThisTask=0, NProcs=1;
 #ifdef _MPI
         MPI_Comm_size(MPI_COMM_WORLD, &NProcs);
         MPI_Comm_rank(MPI_COMM_WORLD, &ThisTask);
 #endif
-        binding_report = "Core binding \n ";
+        binding_report = "CORE BINDING \n ";
         cpu_set_t coremask;
         char clbuf[7 * CPU_SETSIZE], hnbuf[64];
         memset(clbuf, 0, sizeof(clbuf));
@@ -111,4 +123,56 @@ namespace profiling_util {
         }
         return binding_report;
     }
+    /// return binding as called within openmp region 
+    std::string ReportThreadAffinity(std::string where)
+    {
+        std::string result;
+        cpu_set_t coremask;
+        char clbuf[7 * CPU_SETSIZE], hnbuf[64];
+        memset(clbuf, 0, sizeof(clbuf));
+        memset(hnbuf, 0, sizeof(hnbuf));
+        (void)gethostname(hnbuf, sizeof(hnbuf));
+        result = where + " : ";
+        (void)sched_getaffinity(0, sizeof(coremask), &coremask);
+        cpuset_to_cstr(&coremask, clbuf);
+        int thread = 0;
+#ifdef _OPENMP
+        thread = omp_get_thread_num();
+#endif
+        result += " Thread " + std::to_string(thread) + " : ";
+        result += " Core affinity = " + std::string(clbuf) + " \n ";
+
+        return result;
+    }
+
+    /// return binding as called within openmp region, MPI aware 
+#ifdef _MPI 
+    std::string MPIReportThreadAffinity(std::string where, MPI_Comm &comm)
+    {
+        std::string result;
+        int ThisTask=0, NProcs=1;
+        cpu_set_t coremask;
+        char clbuf[7 * CPU_SETSIZE], hnbuf[64];
+
+        MPI_Comm_size(comm, &NProcs);
+        MPI_Comm_rank(comm, &ThisTask);
+        memset(hnbuf, 0, sizeof(hnbuf));
+        memset(clbuf, 0, sizeof(clbuf));
+        (void)gethostname(hnbuf, sizeof(hnbuf));
+        result = where;
+        result += "::\t On node " + std::string(hnbuf) + " : ";
+        result += "MPI Rank " + std::to_string(ThisTask + " : ");
+        (void)sched_getaffinity(0, sizeof(coremask), &coremask);
+        cpuset_to_cstr(&coremask, clbuf);
+        int thread = 0;
+#ifdef _OPENMP
+        thread = omp_get_thread_num();
+#endif
+        result += " Thread " + std::to_string(thread) + " : ";
+        result += " Core affinity = " + std::string(clbuf) + " \n ";
+
+        return result;
+    }
+#endif
+
 }
