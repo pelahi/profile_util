@@ -37,9 +37,10 @@ namespace profiling_util {
     /// @return string of MPI comm rank and thread core affinity 
     std::string ReportBinding();
     /// reports thread affinity within a given scope, thus depends if called within OMP region 
-    /// @param where string of location where called in code, useful to provide __func__ and __LINE
+    /// @param func function where called in code, useful to provide __func__ and __LINE
+    /// @param line code line number where called
     /// @return string of thread core affinity 
-    std::string ReportThreadAffinity(std::string where);
+    std::string ReportThreadAffinity(std::string func, std::string line);
 #ifdef _MPI
     /// reports thread affinity within a given scope, thus depends if called within OMP region, MPI aware
     /// @param where string of location where called in code, useful to provide __func__ and __LINE
@@ -268,3 +269,17 @@ namespace profiling_util {
     std::string ReportTimeTaken(const Timer &t, const std::string &f, const std::string &l);
     float GetTimeTaken(const Timer &t, const std::string &f, const std::string &l);
 }
+
+
+#define LogThreadAffinity std::cout<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerThreadAffinity(logger) logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+#ifdef _MPI
+    #define MPILogThreadAffinity(comm) std::cout<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
+    #define MPILoggerThreadAffinity(logger,comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
+#endif
+#define LogMemUsage std::cout<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerMemUsage(logger) logger<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+
+#define LogTimeTaken(timer) std::cout<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerTimeTaken(logger,timer) logger<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#define NewTimer profiling_util::Timer(__func__, std::to_string(__LINE__));

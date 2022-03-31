@@ -21,7 +21,7 @@ namespace profiling_util {
     {
         std::string new_ref = "@"+function+" L"+line_num;
         std::ostringstream report;
-        report <<"Time taken between : " << new_ref << " - " << t.get_ref() << " \n " << us_time(t.get());
+        report <<"Time taken between : " << new_ref << " - " << t.get_ref() << " : " << us_time(t.get());
         return report.str();
     }
 

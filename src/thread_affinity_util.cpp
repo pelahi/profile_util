@@ -124,7 +124,7 @@ namespace profiling_util {
         return binding_report;
     }
     /// return binding as called within openmp region 
-    std::string ReportThreadAffinity(std::string where)
+    std::string ReportThreadAffinity(std::string func, std::string line)
     {
         std::string result;
         cpu_set_t coremask;
@@ -132,7 +132,7 @@ namespace profiling_util {
         memset(clbuf, 0, sizeof(clbuf));
         memset(hnbuf, 0, sizeof(hnbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
-        result = where + " : ";
+        result = "Thread affinity report @ " + func + " L" + line + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
         cpuset_to_cstr(&coremask, clbuf);
         int thread = 0;
@@ -147,7 +147,7 @@ namespace profiling_util {
 
     /// return binding as called within openmp region, MPI aware 
 #ifdef _MPI 
-    std::string MPIReportThreadAffinity(std::string where, MPI_Comm &comm)
+    std::string MPIReportThreadAffinity(std::string func, std::string line, MPI_Comm &comm)
     {
         std::string result;
         int ThisTask=0, NProcs=1;
@@ -159,7 +159,7 @@ namespace profiling_util {
         memset(hnbuf, 0, sizeof(hnbuf));
         memset(clbuf, 0, sizeof(clbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
-        result = where;
+        result = "Thread affinity report @ " + func + " L" + line + " : ";
         result += "::\t On node " + std::string(hnbuf) + " : ";
         result += "MPI Rank " + std::to_string(ThisTask) + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
