@@ -1,6 +1,9 @@
-/*! \file proto.h
+/*! \file profile_util.h
  *  \brief this file contains all function prototypes of the code
  */
+
+#ifndef _PROFILE_UTIL
+#define _PROFILE_UTIL
 
 #include <cstring>
 #include <string>
@@ -270,16 +273,66 @@ namespace profiling_util {
     float GetTimeTaken(const Timer &t, const std::string &f, const std::string &l);
 }
 
-
-#define LogThreadAffinity std::cout<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+/// MPI helper routines
+//{@
+#ifdef _MPI 
+#define MPIOnly0 if (ThisTask == 0)
+std::string MPICallingRank() {return std::string(sprintf("MPI [%04d]: ",ThisTask));}
+#endif
+//@}
+/// \def utility definitions 
+//@{
+#define _where_calling_from "@"<<__func__<<" L"<<std::to_string(__LINE__)
+//@}
+/// \defgroup LogAffinity
+/// Log thread affinity and parallelism either to std or an ostream
+//@{
+#define LogParallelAPI() std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
+#define LogBinding() std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportBinding()<<std::endl;
+#define LogThreadAffinity() std::cout<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerThreadAffinity(logger) logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
-    #define MPILogThreadAffinity(comm) std::cout<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
-    #define MPILoggerThreadAffinity(logger,comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
+#define MPILog0ThreadAffinity() if(ThisTask == 0) std::cout<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogger0ThreadAffinity(logger) if(ThisTask == 0)logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogThreadAffinity(comm) std::cout<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
+#define MPILoggerThreadAffinity(logger,comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
+#define MPILog0ParallelAPI() if(ThisTask==0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
+#define MPILog0Binding() if (ThisTask == 0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportBinding()<<std::endl;
 #endif
-#define LogMemUsage std::cout<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
-#define LoggerMemUsage(logger) logger<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+//@}
 
+/// \defgroup LogMem
+/// Log memory usage either to std or an ostream
+//@{
+#define LogMemUsage() std::cout<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerMemUsage(logger) logger<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#ifdef _MPI
+#define MPILogMemUsage() std::cout<<profiling_util::MPICallingRank()<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerMemUsage(logger) logger<<profiling_util::MPICallingRank()<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#endif
+//@}
+
+
+/// \defgroup LogTime
+/// Log time taken either to std or an ostream
 #define LogTimeTaken(timer) std::cout<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerTimeTaken(logger,timer) logger<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
-#define NewTimer profiling_util::Timer(__func__, std::to_string(__LINE__));
+#ifdef _MPI
+#define MPILogTimeTaken(timer) std::cout<<profiling_util::MPICallingRank()<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerTimeTaken(logger,timer) logger<<profiling_util::MPICallingRank()<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#endif 
+#define NewTimer() profiling_util::Timer(__func__, std::to_string(__LINE__));
+//@}
+
+/// \defgroup C_naming
+/// Extern C interface
+//@{
+extern "C" {
+    const char *report_binding();
+    #define log_report_binding() printf("@%s L%d %s", __func__, __LINE__, profiling_util::ReportBinding());
+    const char *report_thread_affinity(char *f, int l);
+    #define log_thread_affinity() printf("%s", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)));
+}
+//@}
+
+#endif

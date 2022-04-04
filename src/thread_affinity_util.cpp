@@ -69,6 +69,7 @@ namespace profiling_util {
     std::string ReportParallelAPI() 
     {
         std::string s;
+        s = "Parallel API's \n ======== \n";
 #ifdef _MPI
         int rank, size;
         MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -92,31 +93,31 @@ namespace profiling_util {
         MPI_Comm_size(MPI_COMM_WORLD, &NProcs);
         MPI_Comm_rank(MPI_COMM_WORLD, &ThisTask);
 #endif
-        binding_report = "CORE BINDING \n ";
+        binding_report = "Core Binding \n ======== \n";
         cpu_set_t coremask;
         char clbuf[7 * CPU_SETSIZE], hnbuf[64];
         memset(clbuf, 0, sizeof(clbuf));
         memset(hnbuf, 0, sizeof(hnbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
-    #ifdef _OPENMP
+#ifdef _OPENMP
         #pragma omp parallel shared (binding_report) private(coremask, clbuf)
-    #endif
+#endif
         {
             std::string result;
             (void)sched_getaffinity(0, sizeof(coremask), &coremask);
             cpuset_to_cstr(&coremask, clbuf);
             result = "\t On node " + std::string(hnbuf) + " : ";
-    #ifdef _MPI
+#ifdef _MPI
             result += "MPI Rank " + std::to_string(ThisTask) + " : ";
-    #endif
-    #ifdef _OPENMP
+#endif
+#ifdef _OPENMP
             auto thread = omp_get_thread_num();
             result +=" OMP Thread " + std::to_string(thread) + " : ";
-    #endif
+#endif
             result += " Core affinity = " + std::string(clbuf) + " \n ";
-    #ifdef _OPENMP
+#ifdef _OPENMP
             #pragma omp critical
-    #endif
+#endif
             {
                 binding_report += result;
             }
@@ -140,7 +141,9 @@ namespace profiling_util {
         thread = omp_get_thread_num();
 #endif
         result += " Thread " + std::to_string(thread) + " : ";
-        result += " Core affinity = " + std::string(clbuf) + " \n ";
+        result += " Core affinity = " + std::string(clbuf) + " ";
+        result += " Core placement = " + std::to_string(sched_getcpu()) + " ";
+        result += "\n";
 
         return result;
     }
@@ -170,9 +173,24 @@ namespace profiling_util {
 #endif
         result += " Thread " + std::to_string(thread) + " : ";
         result += " Core affinity = " + std::string(clbuf) + " \n ";
+        result += " Core placement = " + std::to_string(sched_getcpu()) + " ";
+        result += "\n";
 
         return result;
     }
 #endif
 
+}
+
+extern "C" {
+    const char *report_binding()
+    {        
+        const char *c = profiling_util::ReportBinding().c_str();
+        return c;
+    }
+    const char *report_thread_affinity(char *f, int l)
+    {        
+        const char *c = profiling_util::ReportThreadAffinity(std::string(f), std::to_string(l)).c_str();
+        return c;
+    }
 }
