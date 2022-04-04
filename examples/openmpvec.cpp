@@ -8,28 +8,14 @@
 #include <omp.h>
 #endif
 
-std::chrono::time_point<std::chrono::high_resolution_clock> MyGetTime(){
-    auto now = std::chrono::high_resolution_clock::now();
-    return now;
-}
-
-double MyElapsedTime(std::chrono::time_point<std::chrono::high_resolution_clock> before)
-{
-    auto now = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(now - before);
-    return elapsed.count()*1e-9;
-}
-
 int main() {
-    std::cout<<profiling_util::ReportParallelAPI()<<std::endl;
-    std::cout<<profiling_util::ReportBinding()<<std::endl;
+    LogParallelAPI();
+    LogBinding();
   #ifdef USEOPENMP
     int nthreads = omp_get_max_threads();
-    // std::cout<<"OpenMP version"<<_OPENMP<<std::endl;
-    // std::cout<<"Running with OpenMP "<<nthreads<<std::endl;
   #endif
 
-    auto time_mem = NewTimer;
+    auto time_mem = NewTimer();
     std::vector<int> x_int, y_int;
     std::vector<float> x_float, y_float;
     std::vector<double> x_double, y_double;
@@ -43,10 +29,10 @@ int main() {
     y_float.resize(Nentries);
     x_double.resize(Nentries);
     y_double.resize(Nentries);
-    LogMemUsage;
+    LogMemUsage();
     LogTimeTaken(time_mem);
 
-    auto time_sillycalc = NewTimer;
+    auto time_sillycalc = NewTimer();
 
     #ifdef USEOPENMP
     #pragma omp parallel for \
@@ -82,7 +68,7 @@ int main() {
       y_double[i] = tempd+tempd*pow(tempd,2) + tempd/(tempd+1);
     }
     LogTimeTaken(time_sillycalc);
-    time_mem = NewTimer;
+    time_mem = NewTimer();
     x_int.clear();
     x_float.clear();
     x_double.clear();
@@ -95,6 +81,6 @@ int main() {
     y_int.shrink_to_fit();
     y_float.shrink_to_fit();
     y_double.shrink_to_fit();
-    LogMemUsage;
+    LogMemUsage();
     LogTimeTaken(time_mem);
 }
