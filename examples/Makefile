@@ -3,10 +3,14 @@
 OMPFLAGS=-fopenmp
 libdir=$(shell pwd)/../lib/
 
-all: openmpvec
+all: openmpvec_cpp openmpvec_fort
 
 clean:
-	rm -f openmpvec
+	rm -f openmpvec_cpp openmpvec_fort
 
-openmpvec: openmpvec.cpp
-	$(CXX) $(OMPFLAGS) -L$(libdir) -I../src/ -Wl,-rpath=$(libdir) -lprofile_util_omp openmpvec.cpp -o openmpvec
+openmpvec_cpp: openmpvec.cpp
+	$(CXX) $(OMPFLAGS) -L$(libdir) -I../src/ -Wl,-rpath=$(libdir) -lprofile_util_omp openmpvec.cpp -o openmpvec_cpp
+
+openmpvec_fort: openmpvec.f90
+	$(F90) $(FOMPFLAGS) -L$(libdir) -I../src/ -Wl,-rpath=$(libdir) -lprofile_util_omp openmpvec.f90 -o openmpvec_fort
+	

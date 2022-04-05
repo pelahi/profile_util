@@ -66,6 +66,12 @@ namespace profiling_util {
         ptr = nullptr;
     }
 
+    std::string MPICallingRank(int task){
+        char s[20];
+        sprintf(s,"MPI [%04d]: ",task);
+        return std::string(s);
+    }
+
     std::string ReportParallelAPI() 
     {
         std::string s;
@@ -183,14 +189,12 @@ namespace profiling_util {
 }
 
 extern "C" {
-    const char *report_binding()
+    void report_binding(char c[])
     {        
-        const char *c = profiling_util::ReportBinding().c_str();
-        return c;
+        strcpy(c,profiling_util::ReportBinding().c_str());
     }
-    const char *report_thread_affinity(char *f, int l)
+    void report_thread_affinity(char c[], char *f, int l)
     {        
-        const char *c = profiling_util::ReportThreadAffinity(std::string(f), std::to_string(l)).c_str();
-        return c;
+        strcpy(c,profiling_util::ReportThreadAffinity(std::string(f), std::to_string(l)).c_str());
     }
 }

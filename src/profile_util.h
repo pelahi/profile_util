@@ -276,8 +276,8 @@ namespace profiling_util {
 /// MPI helper routines
 //{@
 #ifdef _MPI 
-#define MPIOnly0 if (ThisTask == 0)
-std::string MPICallingRank() {return std::string(sprintf("MPI [%04d]: ",ThisTask));}
+//#define MPIOnly0 if (ThisTask == 0)
+std::string MPICallingRank(int task);
 #endif
 //@}
 /// \def utility definitions 
@@ -307,8 +307,8 @@ std::string MPICallingRank() {return std::string(sprintf("MPI [%04d]: ",ThisTask
 #define LogMemUsage() std::cout<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerMemUsage(logger) logger<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
-#define MPILogMemUsage() std::cout<<profiling_util::MPICallingRank()<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerMemUsage(logger) logger<<profiling_util::MPICallingRank()<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogMemUsage() std::cout<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerMemUsage(logger) logger<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
 #endif
 //@}
 
@@ -318,8 +318,8 @@ std::string MPICallingRank() {return std::string(sprintf("MPI [%04d]: ",ThisTask
 #define LogTimeTaken(timer) std::cout<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerTimeTaken(logger,timer) logger<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
-#define MPILogTimeTaken(timer) std::cout<<profiling_util::MPICallingRank()<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerTimeTaken(logger,timer) logger<<profiling_util::MPICallingRank()<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogTimeTaken(timer) std::cout<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerTimeTaken(logger,timer) logger<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #endif 
 #define NewTimer() profiling_util::Timer(__func__, std::to_string(__LINE__));
 //@}
@@ -328,9 +328,9 @@ std::string MPICallingRank() {return std::string(sprintf("MPI [%04d]: ",ThisTask
 /// Extern C interface
 //@{
 extern "C" {
-    const char *report_binding();
+    void report_binding(char c[]);
     #define log_report_binding() printf("@%s L%d %s", __func__, __LINE__, profiling_util::ReportBinding());
-    const char *report_thread_affinity(char *f, int l);
+    void report_thread_affinity(char c[], char *f, int l);
     #define log_thread_affinity() printf("%s", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)));
 }
 //@}
