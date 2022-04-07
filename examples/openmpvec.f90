@@ -19,7 +19,7 @@ program OpenMPTest
     
     integer, dimension(:), allocatable :: grid
     integer n
-    character(len=200) :: str
+    character(len=20000) :: str
     n=1000
     
 

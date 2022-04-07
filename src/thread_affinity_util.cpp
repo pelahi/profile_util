@@ -86,6 +86,7 @@ namespace profiling_util {
 #ifdef _OPENMP 
         s += "OpenMP version " + std::to_string(_OPENMP);
         s += " with total number of threads = " + std::to_string(omp_get_max_threads());
+        s += " with total number of allowed levels " + std::to_string(omp_get_max_active_levels());
         s += "\n";
 #endif
         return s;
@@ -105,20 +106,25 @@ namespace profiling_util {
         memset(clbuf, 0, sizeof(clbuf));
         memset(hnbuf, 0, sizeof(hnbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
+        std::string result;
+        result = "\t On node " + std::string(hnbuf) + " : ";
+#ifdef _MPI
+        result += "MPI Rank " + std::to_string(ThisTask) + " : ";
+#endif
 #ifdef _OPENMP
-        #pragma omp parallel shared (binding_report) private(coremask, clbuf)
+        #pragma omp parallel \
+        default(none) shared(binding_report, hnbuf, ThisTask) \
+        private(coremask, clbuf) \ 
+        firstprivate(result)
 #endif
         {
-            std::string result;
             (void)sched_getaffinity(0, sizeof(coremask), &coremask);
             cpuset_to_cstr(&coremask, clbuf);
-            result = "\t On node " + std::string(hnbuf) + " : ";
-#ifdef _MPI
-            result += "MPI Rank " + std::to_string(ThisTask) + " : ";
-#endif
 #ifdef _OPENMP
             auto thread = omp_get_thread_num();
+            auto level = omp_get_level();
             result +=" OMP Thread " + std::to_string(thread) + " : ";
+            result +=" at nested level " + std::to_string(level) + " : ";
 #endif
             result += " Core affinity = " + std::string(clbuf) + " \n ";
 #ifdef _OPENMP
@@ -142,11 +148,13 @@ namespace profiling_util {
         result = "Thread affinity report @ " + func + " L" + line + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
         cpuset_to_cstr(&coremask, clbuf);
-        int thread = 0;
+        int thread = 0, level = 1;
 #ifdef _OPENMP
         thread = omp_get_thread_num();
+        level = omp_get_level();
 #endif
-        result += " Thread " + std::to_string(thread) + " : ";
+        result += " Thread " + std::to_string(thread);
+        result +=" at level " + std::to_string(level) + " : ";
         result += " Core affinity = " + std::string(clbuf) + " ";
         result += " Core placement = " + std::to_string(sched_getcpu()) + " ";
         result += "\n";
@@ -173,11 +181,14 @@ namespace profiling_util {
         result += "MPI Rank " + std::to_string(ThisTask) + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
         cpuset_to_cstr(&coremask, clbuf);
-        int thread = 0;
+        int thread = 0, level = 1;
 #ifdef _OPENMP
         thread = omp_get_thread_num();
+        level = omp_get_level();
 #endif
-        result += " Thread " + std::to_string(thread) + " : ";
+        result += " Thread " + std::to_string(thread);
+        result +=" at level " + std::to_string(level) + " : ";
+
         result += " Core affinity = " + std::string(clbuf) + " \n ";
         result += " Core placement = " + std::to_string(sched_getcpu()) + " ";
         result += "\n";
