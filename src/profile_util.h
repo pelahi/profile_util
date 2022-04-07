@@ -328,10 +328,12 @@ std::string MPICallingRank(int task);
 /// Extern C interface
 //@{
 extern "C" {
-    void report_binding(char c[]);
-    #define log_report_binding() printf("@%s L%d %s", __func__, __LINE__, profiling_util::ReportBinding());
-    void report_thread_affinity(char c[], char *f, int l);
-    #define log_thread_affinity() printf("%s", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)));
+    void report_parallel_api(char *str, int *str_len);
+    #define log_parallel_api() printf("@%s L%d %s", __func__, __LINE__, profiling_util::ReportParallelAPI().c_str());
+    void report_binding(char *str, int *str_len);
+    #define log_binding() printf("@%s L%d %s", __func__, __LINE__, profiling_util::ReportBinding().c_str());
+    void report_thread_affinity(char *str, int *str_len, char *f, int l);
+    #define log_thread_affinity() printf("%s", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
 }
 //@}
 

@@ -87,8 +87,64 @@ namespace profiling_util {
         s += "OpenMP version " + std::to_string(_OPENMP);
         s += " with total number of threads = " + std::to_string(omp_get_max_threads());
         s += " with total number of allowed levels " + std::to_string(omp_get_max_active_levels());
+#ifdef _WITH_GPU
+        int numdevices = omp_get_num_devices();
+        int defaultdevice = omp_get_default_device();
+        int ninfo[2];
+        if (numdevices > 0) 
+        {
+            #pragma omp target map(tofrom:ninfo)
+            {
+                int team = omp_get_team_num();
+                int tid = omp_get_thread_num();
+                if (tid == 0 && team == 0)
+                {
+                    auto nteams = omp_get_num_teams();
+                    auto nthreads = omp_get_num_threads();
+                    ninfo[0] = nteams;
+                    ninfo[1] = nthreads;
+                }
+            }
+            s += "\n";
+            s += "OpenMP Target : ";
+            s += "Number of devices "+ std::to_string(numdevices);
+            s += "Default device "+ std::to_string(defaultdevice);
+            s += "Number of Compute Units "+ std::to_string(ninfo[1]);
+        }
+#endif
         s += "\n";
 #endif
+#ifdef _HIP 
+        int nDevices = 0;
+        hipGetDeviceCount(&nDevices);
+        s += "Running with HIP and found " + std::to_string(nDevices) + "\n";
+        for (auto i=0;i<nDevices;i++)
+        {
+            hipDeviceProp_t prop;
+            hipGetDeviceProperties(&prop, i);
+            s += "HIP Device" + string(prop.name);
+            s += " Compute Units " + to_string(prop.multiProcessorCount);
+            s += " Max Work Group Size " + to_string(prop.warpSize);
+            s += " Local Mem Size " + to_string(prop.sharedMemPerBlock);
+            s += " Global Mem Size " + to_string(prop.totalGlobalMem);
+            s += "\n";
+        }
+#endif 
+#ifdef _CUDA
+        int nDeviceßs = 0;
+        cudaGetDeviceCount(&nDevices);
+        s += "Running with CUDA and found " + std::to_string(nDevices) + "\n";
+        for (auto i=0;i<nDevices;i++)
+        {
+            cudaGetDeviceProperties(&prop, i);
+            s += "Device" + string(prop.name);
+            s += " Compute Units " + std::to_string(prop.multiProcessorCount);
+            s += " Max Work Group Size " + std::to_string(prop.warpSize);
+            s += " Local Mem Size " + std::to_string(prop.sharedMemPerBlock);
+            s += " Global Mem Size " + std::to_string(prop.totalGlobalMem);
+            s += "\n";
+        }
+#endif 
         return s;
     }
 
@@ -114,7 +170,7 @@ namespace profiling_util {
 #ifdef _OPENMP
         #pragma omp parallel \
         default(none) shared(binding_report, hnbuf, ThisTask) \
-        private(coremask, clbuf) \ 
+        private(coremask, clbuf) \
         firstprivate(result)
 #endif
         {
@@ -200,12 +256,22 @@ namespace profiling_util {
 }
 
 extern "C" {
-    void report_binding(char c[])
+    void report_parallel_api(char *str, int *str_len)
     {        
-        strcpy(c,profiling_util::ReportBinding().c_str());
+        std::string s = profiling_util::ReportParallelAPI();
+        strcpy(str,s.c_str());
+        *str_len=s.length();
     }
-    void report_thread_affinity(char c[], char *f, int l)
+    void report_binding(char *str, int *str_len)
     {        
-        strcpy(c,profiling_util::ReportThreadAffinity(std::string(f), std::to_string(l)).c_str());
+        std::string s = profiling_util::ReportBinding();
+        strcpy(str,s.c_str());
+        *str_len=s.length();
+    }
+    void report_thread_affinity(char *str, int *str_len, char *f, int l)
+    {        
+        std::string s = profiling_util::ReportThreadAffinity(std::string(f), std::to_string(l));
+        strcpy(str,s.c_str());
+        *str_len=s.length();
     }
 }
