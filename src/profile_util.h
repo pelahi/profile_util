@@ -289,7 +289,7 @@ std::string MPICallingRank(int task);
 //@{
 #define LogParallelAPI() std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
 #define LogBinding() std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportBinding()<<std::endl;
-#define LogThreadAffinity() std::cout<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+#define LogThreadAffinity() printf("%s \n", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
 #define LoggerThreadAffinity(logger) logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
 #define MPILog0ThreadAffinity() if(ThisTask == 0) std::cout<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
@@ -315,6 +315,7 @@ std::string MPICallingRank(int task);
 
 /// \defgroup LogTime
 /// Log time taken either to std or an ostream
+//@{
 #define LogTimeTaken(timer) std::cout<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerTimeTaken(logger,timer) logger<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
@@ -328,12 +329,50 @@ std::string MPICallingRank(int task);
 /// Extern C interface
 //@{
 extern "C" {
-    void report_parallel_api(char *str, int *str_len);
-    #define log_parallel_api() printf("@%s L%d %s", __func__, __LINE__, profiling_util::ReportParallelAPI().c_str());
-    void report_binding(char *str, int *str_len);
-    #define log_binding() printf("@%s L%d %s", __func__, __LINE__, profiling_util::ReportBinding().c_str());
-    void report_thread_affinity(char *str, int *str_len, char *f, int l);
-    #define log_thread_affinity() printf("%s", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
+    /// \defgropu LogAffinity_C
+    //@{
+    int report_parallel_api(char *str);
+    #define log_parallel_api() printf("@%s L%d %s\n", __func__, __LINE__, profiling_util::ReportParallelAPI().c_str());
+    int report_binding(char *str);
+    #define log_binding() printf("@%s L%d %s\n", __func__, __LINE__, profiling_util::ReportBinding().c_str());
+    int report_thread_affinity(char *str, char *f, int l);
+    #define log_thread_affinity() printf("%s\n", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
+    #ifdef _MPI
+        #define mpi_log0_thread_affinity() if(ThisTask == 0) printf("%s\n", ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
+        #define mpi_log_thread_affinity() printf("%s\n", profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
+        #define mpi_log0_parallel_api() if(ThisTask==0) printf("@%s L%d %s\n", __func__, __LINE__, profiling_util::ReportParallelAPI().c_str());
+        #define mpi_log0_binding() if (ThisTask == 0) printf("@%s L%d %s\n", __func__, __LINE__, profiling_util::ReportBinding().c_str());
+    #endif
+    //@}
+
+    /// \defgroup LogMem_C
+    /// Log memory usage either to std or an ostream
+    //@{
+    #define log_mem_usage() printf("%s \n", profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__)).c_str());
+    #ifdef _MPI
+    #define mpi_log_mem_usage() printf("%s %s \n", profiling_util::MPICallingRank(ThisTask).c_str(), profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__)).c_str());
+    #endif
+    //@}
+
+    /// \defgroup LogTime_C
+    /// \todo Still implementing a C friendly structure to record timing. 
+    //@{
+    struct timer_c {
+        double t0, tref;
+        char ref[2000], where[2000];
+        timer_c(){
+            t0 = tref = 0;
+            memset(ref, 0, sizeof(ref));
+            memset(where, 0, sizeof(where));
+        }
+        void set_timer_ref(double _t0, char _ref[2000]) {
+            t0 = _t0;
+            strcpy(ref,_ref);
+        }
+    };
+    void report_time_taken(char *str, timer_c &t);
+
+    //@}
 }
 //@}
 

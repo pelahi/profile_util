@@ -256,22 +256,22 @@ namespace profiling_util {
 }
 
 extern "C" {
-    void report_parallel_api(char *str, int *str_len)
+    int report_parallel_api(char *str)
     {        
         std::string s = profiling_util::ReportParallelAPI();
         strcpy(str,s.c_str());
-        *str_len=s.length();
+        return static_cast<int>(s.length());
     }
-    void report_binding(char *str, int *str_len)
+    int report_binding(char *str)
     {        
         std::string s = profiling_util::ReportBinding();
         strcpy(str,s.c_str());
-        *str_len=s.length();
+        return static_cast<int>(s.length());
     }
-    void report_thread_affinity(char *str, int *str_len, char *f, int l)
+    int report_thread_affinity(char *str, char *f, int l)
     {        
         std::string s = profiling_util::ReportThreadAffinity(std::string(f), std::to_string(l));
         strcpy(str,s.c_str());
-        *str_len=s.length();
+        return static_cast<int>(s.length());
     }
 }

@@ -2,7 +2,7 @@
 
 OUTPUTFILE=libprofile_util
 OMPFLAGS=-fopenmp
-MPICXX=$(CXX)
+MPICXX?=$(CXX)
 
 all: lib/$(OUTPUTFILE).so lib/$(OUTPUTFILE)_omp.so lib/$(OUTPUTFILE)_mpi.so lib/$(OUTPUTFILE)_mpi_omp.so
 #lib/$(OUTPUTFILE).a
