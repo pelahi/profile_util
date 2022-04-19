@@ -1,3 +1,6 @@
-lib/*
-obj/*
+lib/*.so
+obj/*.o
+
+examples/openmp/bin/openmp*
+examples/openmp/bin/mpi*
 
