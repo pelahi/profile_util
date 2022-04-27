@@ -131,7 +131,7 @@ namespace profiling_util {
         }
 #endif 
 #ifdef _CUDA
-        int nDeviceßs = 0;
+        int nDevices = 0;
         cudaGetDeviceCount(&nDevices);
         s += "Running with CUDA and found " + std::to_string(nDevices) + "\n";
         for (auto i=0;i<nDevices;i++)
