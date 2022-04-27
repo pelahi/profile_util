@@ -46,9 +46,11 @@ namespace profiling_util {
     std::string ReportThreadAffinity(std::string func, std::string line);
 #ifdef _MPI
     /// reports thread affinity within a given scope, thus depends if called within OMP region, MPI aware
-    /// @param where string of location where called in code, useful to provide __func__ and __LINE
+    /// @param func function where called in code, useful to provide __func__ and __LINE
+    /// @param line code line number where called
+    /// @param comm MPI communicator
     /// @return string of MPI comm rank and thread core affinity 
-    std::string MPIReportThreadAffinity(std::string where);
+    std::string MPIReportThreadAffinity(std::string func, std::string line, MPI_Comm &comm)
 #endif
 
     namespace detail {
