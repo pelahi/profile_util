@@ -24,6 +24,10 @@
 #include <mpi.h>
 #endif 
 
+#ifdef _CUDA
+#elif defined(_HIP)
+#endif
+
 #ifdef _OPENMP 
 #include <omp.h>
 #endif
@@ -294,9 +298,9 @@ std::string MPICallingRank(int task);
 #define LogThreadAffinity() printf("%s \n", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
 #define LoggerThreadAffinity(logger) logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
-#define MPILog0ThreadAffinity() if(ThisTask == 0) std::cout<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILog0ThreadAffinity() if(ThisTask == 0) printf("%s \n", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
 #define MPILogger0ThreadAffinity(logger) if(ThisTask == 0)logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILogThreadAffinity(comm) std::cout<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
+#define MPILogThreadAffinity(comm) printf("%s \n", profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm).c_str());
 #define MPILoggerThreadAffinity(logger,comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
 #define MPILog0ParallelAPI() if(ThisTask==0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
 #define MPILog0Binding() if (ThisTask == 0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportBinding()<<std::endl;
