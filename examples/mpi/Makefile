@@ -9,6 +9,6 @@ clean:
 	rm -f bin/mpivec_cpp
 
 bin/mpivec_cpp: mpivec.cpp
-	$(MPICXX) -L$(libdir) -I$(incdir) -Wl,-rpath=$(libdir) -lprofile_util_mpi mpivec.cpp -o bin/mpivec_cpp
+	$(MPICXX) -L$(libdir) -I$(incdir) -Wl,-rpath=$(libdir) mpivec.cpp -o bin/mpivec_cpp -lprofile_util_mpi 
 
 	
