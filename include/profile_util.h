@@ -54,7 +54,7 @@ namespace profiling_util {
     /// @param line code line number where called
     /// @param comm MPI communicator
     /// @return string of MPI comm rank and thread core affinity 
-    std::string MPIReportThreadAffinity(std::string func, std::string line, MPI_Comm &comm)
+    std::string MPIReportThreadAffinity(std::string func, std::string line, MPI_Comm &comm);
 #endif
 
     namespace detail {
