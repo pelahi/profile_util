@@ -3,8 +3,10 @@
 F90=gfortran 
 OMPFLAGS=-fopenmp -DUSEOPENMP
 FOMPFLAGS=-fopenmp 
-libdir=$(shell pwd)/../../lib/
-incdir=$(shell pwd)/../../src/
+LIBDIR=$(shell pwd)/../../lib/
+LIB=-lprofile_util_omp
+INCDIR=$(shell pwd)/../../include/
+FLAGS=-L$(LIBDIR) -I$(INCDIR) -Wl,-rpath=$(LIBDIR)
 
 all: bin/openmpvec_cpp bin/openmpvec_c bin/openmpvec_fort
 
@@ -12,12 +14,12 @@ clean:
 	rm -f bin/openmpvec_cpp bin/openmpvec_c bin/openmpvec_fort
 
 bin/openmpvec_cpp: openmpvec.cpp
-	$(CXX) $(OMPFLAGS) -L$(libdir) -I$(incdir) -Wl,-rpath=$(libdir) openmpvec.cpp -o bin/openmpvec_cpp -lprofile_util_omp 
+	$(CXX) $(OMPFLAGS) $(FLAGS) openmpvec.cpp -o bin/openmpvec_cpp $(LIB) 
 
 bin/openmpvec_c: openmpvec.c
-	$(CC) $(OMPFLAGS) -L$(libdir) -I$(incdir) -Wl,-rpath=$(libdir) openmpvec.c -o bin/openmpvec_c -lprofile_util_omp 
+	$(CXX) $(OMPFLAGS) $(FLAGS) openmpvec.c -o bin/openmpvec_c $(LIB)
 
 bin/openmpvec_fort: openmpvec.f90
-	$(F90) $(FOMPFLAGS) -L$(libdir) -I$(incdir) -Wl,-rpath=$(libdir) openmpvec.f90 -o bin/openmpvec_fort -lprofile_util_omp
+	$(F90) $(FOMPFLAGS) $(FLAGS) openmpvec.f90 -o bin/openmpvec_fort $(LIB)
 
 	

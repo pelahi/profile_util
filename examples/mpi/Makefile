@@ -1,7 +1,9 @@
 .PHONY: all clean
 
-libdir=$(shell pwd)/../../lib/
-incdir=$(shell pwd)/../../src/
+LIBDIR=$(shell pwd)/../../lib/
+LIB=-lprofile_util_mpi 
+INCDIR=$(shell pwd)/../../include/
+FLAGS=-L$(LIBDIR) -I$(INCDIR) -Wl,-rpath=$(LIBDIR) -D_MPI
 
 all: bin/mpivec_cpp 
 
@@ -9,6 +11,6 @@ clean:
 	rm -f bin/mpivec_cpp
 
 bin/mpivec_cpp: mpivec.cpp
-	$(MPICXX) -L$(libdir) -I$(incdir) -Wl,-rpath=$(libdir) mpivec.cpp -o bin/mpivec_cpp -lprofile_util_mpi 
+	$(MPICXX) $(FLAGS) mpivec.cpp -o bin/mpivec_cpp $(LIB)
 
 	
