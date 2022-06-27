@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-CXX=g++
-MPICXX=mpic++
+CXX=CC
+MPICXX=CC
 if [ ! -z $1 ]; then
     CXX=$1
 fi
@@ -10,12 +10,12 @@ if [ ! -z $2]; then
 fi
 
 devicetype=cpu
+OMPFLAGS=-fopenmp
 # first is serial
 buildtypes=("Serial" "OpenMP" "MPI" "MPI+OpenMP")
 buildnames=(" " "_omp" "_mpi" "_mpi_omp")
 compilers=(${CXX} ${CXX} ${MPICXX} ${MPICXX})
 extraflags=("" "${OMPFLAGS}" "-D_MPI" "-D_MPI ${OMPFLAGS}")
-
 
 for ((i=0;i<4;i++)) 
 do 

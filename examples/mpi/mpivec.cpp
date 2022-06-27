@@ -197,32 +197,47 @@ void vector_vectorization_test(unsigned long long Nentries,
     LogTimeTaken(time_sillycalc);
 }
 
+#define LogMPITest() if (ThisTask==0) std::cout<<" running "<<mpifunc<< " test"<<std::endl;
+#define LogMPIBroadcaster() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
+#define LogMPISender() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
+#define LogMPIReceiver() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<std::endl;
+#define LogMPIAllComm() if (ThisTask == 0) std::cout<<ThisTask<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
+
+
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Comm_size(comm, &NProcs);
     MPI_Comm_rank(comm, &ThisTask);
 
+    auto start = std::chrono::system_clock::now();
+    std::time_t start_time = std::chrono::system_clock::to_time_t(start);
+    if (ThisTask==0) std::cout << "Starting job at " << std::ctime(&start_time);
+    auto maxgb=0.8;
+    if (argc == 2) maxgb = atof(argv[1]);
+    
     LogParallelAPI();
     LogBinding();
-
 
     std::vector<int> x_int, y_int;
     std::vector<float> x_float, y_float;
     std::vector<double> x_double, y_double;
-    const unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0/NProcs;
+    const unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0/NProcs/16.0;
     //allocate, test vectorization and deallocate
     //functions showcase use of logging time taken and mem usage
     allocate_mem(Nentries, x_int, y_int, x_float, y_float, x_double, y_double);
     vector_vectorization_test(Nentries, x_int, y_int, x_float, y_float, x_double, y_double);
     deallocate_mem(x_int, y_int, x_float, y_float, x_double, y_double);
 
-    // //allocate mem and init vector using random numbers 
-    // unsigned long long N=100000000;
-    // x_double = allocate_and_init_vector<double>(N);
-    // //recursive call highlights thread affinity reporting
-    // auto t1 = NewTimer();
-    // recursive_vector(x_double);
-    // LogTimeTaken(t1);
+    //allocate mem and init vector using random numbers 
+    unsigned long long N=100000000;
+    x_double = allocate_and_init_vector<double>(N);
+    //recursive call highlights thread affinity reporting
+    auto t1 = NewTimer();
+    recursive_vector(x_double);
+    LogTimeTaken(t1);
 
+    auto end = std::chrono::system_clock::now();
+    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+    if (ThisTask==0) std::cout << "Ending job at " << std::ctime(&end_time);
 }

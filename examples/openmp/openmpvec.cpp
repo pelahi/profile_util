@@ -158,6 +158,25 @@ void vector_vectorization_test(unsigned long long Nentries,
     int nthreads = omp_get_max_threads();
     #endif
     auto time_sillycalc = NewTimer();
+
+    #ifdef USEOPENMP
+    #pragma omp parallel \
+    default(none) \
+    shared(x_int, y_int, x_float, y_float, x_double, y_double, Nentries) \
+    if (nthreads > 1)
+    #endif
+    {
+#ifdef USEOPENMP 
+    LogThreadAffinity();
+    #pragma omp for schedule(static)
+#endif
+    for (auto i=0u; i<Nentries; i++) {
+      x_int[i] = i;
+      auto temp = x_int[i];
+      y_int[i] = temp+temp*pow(temp,2) + temp/(temp+1);
+    }
+    }
+
     #ifdef USEOPENMP
     #pragma omp parallel for \
     default(none) \
@@ -201,7 +220,9 @@ int main() {
     std::vector<int> x_int, y_int;
     std::vector<float> x_float, y_float;
     std::vector<double> x_double, y_double;
-    const unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0;
+    //const unsigned long long Nentries = 215*1024.0*1024.0*1024.0/(4*4+2*8);
+    const unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0/16.0;
+    //const unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0/16.0/4.0;
 
     //allocate, test vectorization and deallocate
     //functions showcase use of logging time taken and mem usage
@@ -211,10 +232,10 @@ int main() {
 
     //allocate mem and init vector using random numbers 
     unsigned long long N=100000000;
-    x_double = allocate_and_init_vector<double>(N);
+    //x_double = allocate_and_init_vector<double>(N);
     //recursive call highlights thread affinity reporting
     auto t1 = NewTimer();
-    recursive_vector(x_double);
+    //recursive_vector(x_double);
     LogTimeTaken(t1);
 
 }
