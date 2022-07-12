@@ -54,17 +54,19 @@ std::tuple<int,
 
     for (auto i=0;i<=numcomsold;i++) 
     {
-        NLocalComms[i] = NProcs/pow(2,i);
+        NLocalComms[i] = NProcs/pow(2,i+1);
         if (NLocalComms[i] < 2) 
         {
             numcoms = i+1;
             break;
         }
         auto ThisLocalCommFlag = ThisTask % NLocalComms[i];
-        mpi_comms_name[i] = std::to_string(pow(2,i));
         MPI_Comm_split(MPI_COMM_WORLD, ThisLocalCommFlag, ThisTask, &mpi_comms[i]);
         MPI_Comm_rank(mpi_comms[i], &ThisLocalTask[i]);
         MPI_Comm_size(mpi_comms[i], &NProcsLocal[i]);
+        int tasktag = ThisTask;
+        MPI_Bcast(&tasktag, 1, MPI_INTEGER, 0, mpi_comms[i]);
+        mpi_comms_name[i] = "Comm tag " + std::to_string(static_cast<int>(pow(2,i+1)))+" world rank " + std::to_string(tasktag);
     }
     mpi_comms[numcoms-1] = MPI_COMM_WORLD;
     ThisLocalTask[numcoms-1] = ThisTask;
@@ -78,7 +80,7 @@ std::tuple<int,
     mpi_comms_name.resize(numcoms);
     for (auto i=0;i<numcoms;i++) 
     {
-        if (ThisTask==0) std::cout<<" MPI communicator "<<mpi_comms_name[i]<<" has size of "<<NProcsLocal[i]<<" and there are "<<NLocalComms[i]<<" communicators"<<std::endl;
+        if (ThisLocalTask[i]==0) std::cout<<" MPI communicator "<<mpi_comms_name[i]<<" has size of "<<NProcsLocal[i]<<" and there are "<<NLocalComms[i]<<" communicators"<<std::endl;
     }
     MPI_Barrier(mpi_comms[numcoms-1]);
     return std::make_tuple(numcoms,
@@ -136,20 +138,20 @@ std::tuple<float, float, float, float> TimeStats(std::vector<float> times)
     return std::make_tuple(ave, std, mint, maxt);
 }
 
-void MPIReportTimeStats(profiling_util::Timer time1, std::string f, std::string l)
+void MPIReportTimeStats(profiling_util::Timer time1, std::string commname, std::string f, std::string l)
 {
     auto times = MPIGatherTimeStats(time1, f, l);
     if (ThisTask == 0) {
         auto[ave, std, mint, maxt] = TimeStats(times);
-        std::cout<<f<<"@"<<l<<": time taken stats is "<<ave<<" +/- "<<std<<" with [min,max]=["<<mint<<","<<maxt<<"]"<<std::endl;
+        std::cout<<"MPI "<<commname<<" comm "<<f<<"@"<<l<<": time taken stats is "<<ave<<" +/- "<<std<<" with [min,max]=["<<mint<<","<<maxt<<"]"<<std::endl;
     }
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
-void ReportTimeStats(std::vector<float> times, std::string f, std::string l)
+void MPIReportTimeStats(std::vector<float> times, std::string commname, std::string f, std::string l)
 {
     auto[ave, std, mint, maxt] = TimeStats(times);
-    std::cout<<f<<"@"<<l<<": time taken stats is "<<ave<<" +/- "<<std<<" with [min,max]=["<<mint<<","<<maxt<<"]"<<std::endl;
+    if (ThisTask==0) std::cout<<"MPI "<<commname<<" comm "<<f<<"@"<<l<<": time taken stats is "<<ave<<" +/- "<<std<<" with [min,max]=["<<mint<<","<<maxt<<"]"<<std::endl;
 }
 
 
@@ -192,6 +194,72 @@ void MPITestBcast(Options &opt)
 
 void MPITestSendRecv(Options &opt) 
 {
+    MPI_Status status;
+    std::string mpifunc;
+    auto[numcoms, mpi_comms, mpi_comms_name, ThisLocalTask, NProcsLocal, NLocalComms] = MPIAllocateComms();
+    std::vector<double> senddata, receivedata;
+    
+    double * p1 = nullptr, *p2 = nullptr;
+    auto  sizeofsends = MPISetSize(opt.maxgb);
+
+    // now allreduce 
+    mpifunc = "sendrecv";
+    LogMPITest();
+    for (auto i=0;i<sizeofsends.size();i++) 
+    {
+        auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
+        LogMPIAllComm();
+        senddata.resize(sizeofsends[i]);
+        receivedata.resize(sizeofsends[i]);
+        if (ThisTask==0) LogMemUsage();
+        for (auto &d:senddata) d = pow(2.0,ThisTask);
+        p1 = senddata.data();
+        p2 = receivedata.data();
+        auto time1 = NewTimer();
+        for (auto j=0;j<mpi_comms.size();j++)
+        {
+#ifdef TURNOFFMPI
+#else
+            if (ThisLocalTask[j] == 0) std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;
+            std::vector<float> times;
+            for (auto iter=0;iter<Niter;iter++) {
+                auto time2 = NewTimer();
+                std::vector<MPI_Request> sendreqs, recvreqs;
+                for (auto isend=0;isend<NProcsLocal[j];isend++) 
+                {
+                    if (isend != ThisLocalTask[j]) 
+                    {
+                        MPI_Request request;
+                        int tag = isend*NProcsLocal[j]+ThisLocalTask[j];
+                        MPI_Isend(p1, sizeofsends[i], MPI_DOUBLE, isend, tag, mpi_comms[j], &request);
+                        sendreqs.push_back(request);
+                    }
+                }
+                for (auto irecv=0;irecv<NProcsLocal[j];irecv++) 
+                {
+                    if (irecv != ThisLocalTask[j]) 
+                    {
+                        MPI_Request request;
+                        int tag = ThisLocalTask[j]*NProcsLocal[j]+irecv;
+                        MPI_Irecv(p2, sizeofsends[i], MPI_DOUBLE, irecv, tag, mpi_comms[j], &request);
+                        recvreqs.push_back(request);
+                    }
+                }
+                MPI_Waitall(recvreqs.size(), recvreqs.data(), MPI_STATUSES_IGNORE);
+                auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
+                times.insert(times.end(), times_tmp.begin(), times_tmp.end());
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPIReportTimeStats(times, mpi_comms_name[j], __func__, std::to_string(__LINE__));
+#endif
+        }
+        if (ThisTask==0) LogTimeTaken(time1);
+    }
+    senddata.clear();
+    senddata.shrink_to_fit();
+    receivedata.clear();
+    receivedata.shrink_to_fit();
+    MPIFreeComms(mpi_comms, mpi_comms_name);
 
 }
 void MPITestAllGather(Options &opt) 
@@ -241,7 +309,7 @@ void MPITestAllReduce(Options &opt)
                 times.insert(times.end(), times_tmp.begin(), times_tmp.end());
             }
             MPI_Barrier(MPI_COMM_WORLD);
-            if (ThisTask == 0) ReportTimeStats(times, __func__, std::to_string(__LINE__));
+            MPIReportTimeStats(times, mpi_comms_name[j], __func__, std::to_string(__LINE__));
 #endif
         }
         if (ThisTask==0) LogTimeTaken(time1);
