@@ -66,13 +66,13 @@ std::tuple<int,
         MPI_Comm_size(mpi_comms[i], &NProcsLocal[i]);
         int tasktag = ThisTask;
         MPI_Bcast(&tasktag, 1, MPI_INTEGER, 0, mpi_comms[i]);
-        mpi_comms_name[i] = "Comm tag " + std::to_string(static_cast<int>(pow(2,i+1)))+" world rank " + std::to_string(tasktag);
+        mpi_comms_name[i] = "Tag_" + std::to_string(static_cast<int>(pow(2,i+1)))+"_worldrank_" + std::to_string(tasktag);
     }
     mpi_comms[numcoms-1] = MPI_COMM_WORLD;
     ThisLocalTask[numcoms-1] = ThisTask;
     NProcsLocal[numcoms-1] = NProcs;
     NLocalComms[numcoms-1] = 1;
-    mpi_comms_name[numcoms-1] = "world";
+    mpi_comms_name[numcoms-1] = "Tag_world";
     ThisLocalTask.resize(numcoms);
     NLocalComms.resize(numcoms);
     NProcsLocal.resize(numcoms);
@@ -138,21 +138,25 @@ std::tuple<float, float, float, float> TimeStats(std::vector<float> times)
     return std::make_tuple(ave, std, mint, maxt);
 }
 
-void MPIReportTimeStats(profiling_util::Timer time1, std::string commname, std::string f, std::string l)
+void MPIReportTimeStats(std::vector<float> times, 
+    std::string commname, std::string message_size, 
+    std::string f, std::string l)
 {
-    auto times = MPIGatherTimeStats(time1, f, l);
-    if (ThisTask == 0) {
-        auto[ave, std, mint, maxt] = TimeStats(times);
-        std::cout<<"MPI "<<commname<<" comm "<<f<<"@"<<l<<": time taken stats is "<<ave<<" +/- "<<std<<" with [min,max]=["<<mint<<","<<maxt<<"]"<<std::endl;
+    auto[ave, std, mint, maxt] = TimeStats(times);
+    if (ThisTask==0) {
+        std::cout<<"MPI Comm="<<commname<<" @"<<f<<":L"<<l<<" - message size="<<message_size<<" timing [ave,std,min,max]=[" <<ave<<","<<std<<","<<mint<<","<<maxt<<"] (microseconds)"<<std::endl;
     }
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
-void MPIReportTimeStats(std::vector<float> times, std::string commname, std::string f, std::string l)
+void MPIReportTimeStats(profiling_util::Timer time1, 
+    std::string commname, std::string message_size, 
+    std::string f, std::string l)
 {
-    auto[ave, std, mint, maxt] = TimeStats(times);
-    if (ThisTask==0) std::cout<<"MPI "<<commname<<" comm "<<f<<"@"<<l<<": time taken stats is "<<ave<<" +/- "<<std<<" with [min,max]=["<<mint<<","<<maxt<<"]"<<std::endl;
+    auto times = MPIGatherTimeStats(time1, f, l);
+    MPIReportTimeStats(times, commname, message_size, f, l);
 }
+
 
 
 void MPITestBcast(Options &opt) 
@@ -250,7 +254,7 @@ void MPITestSendRecv(Options &opt)
                 times.insert(times.end(), times_tmp.begin(), times_tmp.end());
             }
             MPI_Barrier(MPI_COMM_WORLD);
-            MPIReportTimeStats(times, mpi_comms_name[j], __func__, std::to_string(__LINE__));
+            MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
 #endif
         }
         if (ThisTask==0) LogTimeTaken(time1);
@@ -262,6 +266,7 @@ void MPITestSendRecv(Options &opt)
     MPIFreeComms(mpi_comms, mpi_comms_name);
 
 }
+
 void MPITestAllGather(Options &opt) 
 {
 
@@ -309,7 +314,7 @@ void MPITestAllReduce(Options &opt)
                 times.insert(times.end(), times_tmp.begin(), times_tmp.end());
             }
             MPI_Barrier(MPI_COMM_WORLD);
-            MPIReportTimeStats(times, mpi_comms_name[j], __func__, std::to_string(__LINE__));
+            MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
 #endif
         }
         if (ThisTask==0) LogTimeTaken(time1);
