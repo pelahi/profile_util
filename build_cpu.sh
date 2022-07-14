@@ -19,8 +19,8 @@ extraflags=("" "${OMPFLAGS}" "-D_MPI" "-D_MPI ${OMPFLAGS}")
 
 for ((i=0;i<4;i++)) 
 do 
-    echo "BUILDNAME=${buildnames[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype}"
-    make BUILDNAME=${buildnames[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype} clean
-    make BUILDNAME=${buildnames[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype} CXX=${compilers[$i]} EXTRAFLAGS=${extraflags[$i]} 
+    echo "BUILDTYPE=${buildtypes[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype}"
+    make BUILDTYPE=${buildtypes[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype} clean
+    make BUILDTYPE=${buildtypes[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype} CXX=${compilers[$i]} EXTRAFLAGS=${extraflags[$i]} 
 done
 
