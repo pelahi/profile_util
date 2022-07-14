@@ -19,7 +19,6 @@
 // if want to try running code but not do any actual communication
 // #define TURNOFFMPI
 
-int Niter=1;
 int ThisTask, NProcs;
 
 #define LogMPITest() if (ThisTask==0) std::cout<<" running "<<mpifunc<< " test"<<std::endl;
@@ -31,10 +30,16 @@ int ThisTask, NProcs;
 struct Options
 {
     // what times of communication  to do
-    bool igather = true, ireduce = true, iscatter = true;
-    bool ibcast = false, isendrecv = true;
+    bool igather = true;
+    bool ireduce = true;
+    bool iscatter = true;
+    bool ibcast = false;
+    bool isendrecv = true;
+    bool isendrecvsinglerank = true;
+    int roottask = 0;
     // max message size in GB
     double maxgb = 1.0;
+    int Niter = 1;
 };
 
 std::tuple<int,
@@ -102,10 +107,11 @@ void MPIFreeComms(std::vector<MPI_Comm> &mpi_comms, std::vector<std::string> &mp
 std::vector<unsigned long long> MPISetSize(double maxgb) 
 {
     std::vector<unsigned long long> sizeofsends(4);
-    sizeofsends[0] = 1024.0*1024.0*1024.0*maxgb/8;
+    sizeofsends[0] = 1024.0*1024.0*1024.0*maxgb/sizeof(double);
     for (auto i=1;i<sizeofsends.size();i++) sizeofsends[i] = sizeofsends[i-1]/8;
     std::sort(sizeofsends.begin(),sizeofsends.end());
-    if (ThisTask==0) for (auto &x: sizeofsends) std::cout<<"Messages of "<<x*sizeof(double)/1024./1024./1024.<<" GB"<<std::endl;
+    
+    if (ThisTask==0) for (auto &x: sizeofsends) std::cout<<"Messages of "<<x<<" elements and "<<x*sizeof(double)/1024./1024./1024.<<" GB"<<std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
     return sizeofsends;
 }
@@ -164,7 +170,7 @@ void MPITestBcast(Options &opt)
     MPI_Status status;
     std::string mpifunc;
     auto[numcoms, mpi_comms, mpi_comms_name, ThisLocalTask, NProcsLocal, NLocalComms] = MPIAllocateComms();
-    std::vector<double> data, allreducesum;
+    std::vector<double> data;
     
     double * p1 = nullptr, *p2 = nullptr;
     auto  sizeofsends = MPISetSize(opt.maxgb);
@@ -172,28 +178,99 @@ void MPITestBcast(Options &opt)
     // run broadcast 
     mpifunc = "Bcast";
     LogMPITest();
-    for (auto itask=0;itask<NProcs;itask++) 
+    for (auto i=0;i<sizeofsends.size();i++) 
     {
+        auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
+        LogMPIAllComm();
+        data.resize(sizeofsends[i]);
+        if (ThisTask==0) LogMemUsage();
+        for (auto &d:data) d = pow(2.0,ThisTask);
+        p1 = data.data();
         auto time1 = NewTimer();
-        for (auto i=0;i<sizeofsends.size();i++) {
-            auto time2 = NewTimer();
-            auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
-            LogMPIBroadcaster();
-            data.resize(sizeofsends[i]);
-            p1 = data.data();
+        for (auto j=0;j<mpi_comms.size();j++) 
+        {
 #ifdef TURNOFFMPI
-#else 
-            MPI_Bcast(p1, sizeofsends[i], MPI_DOUBLE, itask, mpi_comms[0]);
+#else
+            if (ThisLocalTask[j] == 0) std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;
+            std::vector<float> times;
+            for (auto itask=0;itask<NProcs;itask++) 
+            {
+                for (auto iter=0;iter<opt.Niter;iter++) {
+                    auto time2 = NewTimer();
+                    MPI_Bcast(p1, sizeofsends[i], MPI_DOUBLE, itask, mpi_comms[j]);
+                    auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
+                    times.insert(times.end(), times_tmp.begin(), times_tmp.end());
+                }
+            }
+            MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
 #endif
-            if (ThisTask==itask) LogTimeTaken(time2);
         }
-        if (ThisTask==itask) LogTimeTaken(time1);
-        MPI_Barrier(mpi_comms[0]);
+        if (ThisTask==0) LogTimeTaken(time1);
     }
     p1 = p2 = nullptr;
     data.clear();
     data.shrink_to_fit();
     MPIFreeComms(mpi_comms, mpi_comms_name);
+}
+
+void MPITestSendRecvSingleRank(Options &opt) 
+{
+    MPI_Status status;
+    std::string mpifunc;
+    std::vector<double> senddata, receivedata;
+    
+    double * p1 = nullptr, *p2 = nullptr;
+    auto  sizeofsends = MPISetSize(opt.maxgb);
+
+    // now allreduce 
+    mpifunc = "sendrecv_singlerank";
+    // use full comms world
+    auto commsname = "Tag_world";
+    LogMPITest();
+    for (auto i=0;i<sizeofsends.size();i++) 
+    {
+        auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
+        LogMPIAllComm();
+        senddata.resize(sizeofsends[i]);
+        receivedata.resize(sizeofsends[i]);
+        if (ThisTask==0) LogMemUsage();
+        for (auto &d:senddata) d = pow(2.0,ThisTask);
+        p1 = senddata.data();
+        p2 = receivedata.data();
+        auto time1 = NewTimer();
+        MPI_Status stat;
+        std::vector<std::string> messages;
+        for (auto itask=0;itask<NProcs;itask++) 
+        {
+            if (itask == opt.roottask) continue;
+            for (auto iter=0;iter<opt.Niter;iter++) 
+            {
+                if (ThisTask == opt.roottask) 
+                {
+                    auto time1 = NewTimer();
+                    MPI_Sendrecv(p1, sizeofsends[i], MPI_DOUBLE, itask, itask, 
+                        p2, sizeofsends[i], MPI_DOUBLE, itask, itask, MPI_COMM_WORLD, &stat);
+                    auto timetaken = profiling_util::GetTimeTaken(time1, __func__, std::to_string(__LINE__));
+                    // times.push_back(timetaken);
+                    messages.push_back(std::to_string(itask) + ": " + std::to_string(timetaken));
+                }
+                else if (itask == ThisTask) {
+                    MPI_Sendrecv(p1, sizeofsends[i], MPI_DOUBLE, opt.roottask, itask, 
+                        p2, sizeofsends[i], MPI_DOUBLE, opt.roottask, itask, MPI_COMM_WORLD, &stat);
+                }
+            }
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (ThisTask == opt.roottask) {
+            std::cout<<"MPI Comm="<<commsname<<" @"<<__func__<<":L"<<std::to_string(__LINE__)<<" - message size="<<sizeofsends[i]<<" timing in microseconds from "<<opt.roottask<<" to "<<std::endl;
+            for (auto &m:messages) std::cout<<"\t"<<m<<std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+    senddata.clear();
+    senddata.shrink_to_fit();
+    receivedata.clear();
+    receivedata.shrink_to_fit();
 }
 
 void MPITestSendRecv(Options &opt) 
@@ -226,7 +303,7 @@ void MPITestSendRecv(Options &opt)
 #else
             if (ThisLocalTask[j] == 0) std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;
             std::vector<float> times;
-            for (auto iter=0;iter<Niter;iter++) {
+            for (auto iter=0;iter<opt.Niter;iter++) {
                 auto time2 = NewTimer();
                 std::vector<MPI_Request> sendreqs, recvreqs;
                 for (auto isend=0;isend<NProcsLocal[j];isend++) 
@@ -263,9 +340,8 @@ void MPITestSendRecv(Options &opt)
     senddata.shrink_to_fit();
     receivedata.clear();
     receivedata.shrink_to_fit();
-    MPIFreeComms(mpi_comms, mpi_comms_name);
-
 }
+
 
 void MPITestAllGather(Options &opt) 
 {
@@ -307,7 +383,7 @@ void MPITestAllReduce(Options &opt)
 #else
             if (ThisLocalTask[j] == 0) std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;
             std::vector<float> times;
-            for (auto iter=0;iter<Niter;iter++) {
+            for (auto iter=0;iter<opt.Niter;iter++) {
                 auto time2 = NewTimer();
                 MPI_Allreduce(p1, p2, sizeofsends[i], MPI_DOUBLE, MPI_SUM, mpi_comms[j]);
                 auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
@@ -328,6 +404,7 @@ void MPITestAllReduce(Options &opt)
 
 void MPIRunTests(Options &opt)
 {
+    if (opt.isendrecvsinglerank) MPITestSendRecvSingleRank(opt);
     if (opt.igather) MPITestAllGather(opt);
     if (opt.iscatter) MPITestAllScatter(opt);
     if (opt.ireduce) MPITestAllReduce(opt);
@@ -346,7 +423,7 @@ int main(int argc, char **argv) {
     std::time_t start_time = std::chrono::system_clock::to_time_t(start);
     if (ThisTask==0) std::cout << "Starting job at " << std::ctime(&start_time);
     if (argc >= 2) opt.maxgb = atof(argv[1]);
-    if (argc == 3) Niter = atof(argv[2]);
+    if (argc == 3) opt.Niter = atof(argv[2]);
     
     if (ThisTask==0) LogParallelAPI();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -357,4 +434,6 @@ int main(int argc, char **argv) {
     auto end = std::chrono::system_clock::now();
     std::time_t end_time = std::chrono::system_clock::to_time_t(end);
     if (ThisTask==0) std::cout << "Ending job at " << std::ctime(&end_time);
+    MPI_Finalize();
+    return 0;
 }
