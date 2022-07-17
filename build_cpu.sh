@@ -21,6 +21,6 @@ for ((i=0;i<4;i++))
 do 
     echo "BUILDTYPE=${buildtypes[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype}"
     make BUILDTYPE=${buildtypes[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype} clean
-    make BUILDTYPE=${buildtypes[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype} CXX=${compilers[$i]} EXTRAFLAGS=${extraflags[$i]} 
+    make BUILDTYPE=${buildtypes[$i]} BUILDNAME=${buildnames[$i]} DEVICETYPE=${devicetype} CXX=${compilers[$i]} EXTRAFLAGS="${extraflags[$i]}" 
 done
 
