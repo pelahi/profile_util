@@ -1,0 +1,427 @@
+#include <iostream>
+#include <vector>
+#include <chrono>
+#include <cmath>
+#include <algorithm>
+#include <random>
+#include <tuple>
+#include <thread>
+#include <profile_util.h>
+
+
+#ifdef USEOPENMP
+#include <omp.h>
+#endif
+
+#ifdef USEFFTW
+#include <fftw.h>
+#endif
+
+#include <mpi.h>
+
+// if want to try running code but not do any actual communication
+// #define TURNOFFMPI
+
+int ThisTask, NProcs;
+
+#define LogMPITest() if (ThisTask==0) std::cout<<" running "<<mpifunc<< " test"<<std::endl;
+#define LogMPIBroadcaster() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
+#define LogMPISender() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
+#define LogMPIReceiver() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<std::endl;
+#define LogMPIAllComm() if (ThisTask == 0) std::cout<<ThisTask<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
+
+struct Options
+{
+    unsigned long long npoints = 256;
+    unsigned long long ngrid = 54;
+    int Niter = 100;
+    double p = 1.0;
+    double deltap = 0.1;
+};
+
+struct PointData
+{
+    double x[3] = {0, 0, 0};
+    unsigned long long id = 0;
+    int type = 0;
+};
+
+std::tuple<int,
+    std::vector<MPI_Comm> ,
+    std::vector<std::string> ,
+    std::vector<int>, 
+    std::vector<int>, 
+    std::vector<int>>
+    MPIAllocateComms()
+{
+    // number of comms is 2, 4, 8, ... till MPI_COMM_WORLD;
+    int numcoms = std::floor(log(static_cast<double>(NProcs))/log(2.0))+1;
+    int numcomsold = numcoms;
+    std::vector<MPI_Comm> mpi_comms(numcoms);
+    std::vector<std::string> mpi_comms_name(numcoms);
+    std::vector<int> ThisLocalTask(numcoms), NProcsLocal(numcoms), NLocalComms(numcoms);
+
+    for (auto i=0;i<=numcomsold;i++) 
+    {
+        NLocalComms[i] = NProcs/pow(2,i+1);
+        if (NLocalComms[i] < 2) 
+        {
+            numcoms = i+1;
+            break;
+        }
+        auto ThisLocalCommFlag = ThisTask % NLocalComms[i];
+        MPI_Comm_split(MPI_COMM_WORLD, ThisLocalCommFlag, ThisTask, &mpi_comms[i]);
+        MPI_Comm_rank(mpi_comms[i], &ThisLocalTask[i]);
+        MPI_Comm_size(mpi_comms[i], &NProcsLocal[i]);
+        int tasktag = ThisTask;
+        MPI_Bcast(&tasktag, 1, MPI_INTEGER, 0, mpi_comms[i]);
+        mpi_comms_name[i] = "Tag_" + std::to_string(static_cast<int>(pow(2,i+1)))+"_worldrank_" + std::to_string(tasktag);
+    }
+    mpi_comms[numcoms-1] = MPI_COMM_WORLD;
+    ThisLocalTask[numcoms-1] = ThisTask;
+    NProcsLocal[numcoms-1] = NProcs;
+    NLocalComms[numcoms-1] = 1;
+    mpi_comms_name[numcoms-1] = "Tag_world";
+    ThisLocalTask.resize(numcoms);
+    NLocalComms.resize(numcoms);
+    NProcsLocal.resize(numcoms);
+    mpi_comms.resize(numcoms);
+    mpi_comms_name.resize(numcoms);
+    for (auto i=0;i<numcoms;i++) 
+    {
+        if (ThisLocalTask[i]==0) std::cout<<" MPI communicator "<<mpi_comms_name[i]<<" has size of "<<NProcsLocal[i]<<" and there are "<<NLocalComms[i]<<" communicators"<<std::endl;
+    }
+    MPI_Barrier(mpi_comms[numcoms-1]);
+    return std::make_tuple(numcoms,
+        std::move(mpi_comms),
+        std::move(mpi_comms_name), 
+        std::move(ThisLocalTask), 
+        std::move(NProcsLocal), 
+        std::move(NLocalComms)
+        );
+}
+
+void MPIFreeComms(std::vector<MPI_Comm> &mpi_comms, std::vector<std::string> &mpi_comms_name){
+    for (auto i=0;i<mpi_comms.size()-1;i++) {
+        if (ThisTask==0) std::cout<<"Freeing "<<mpi_comms_name[i]<<std::endl;
+        MPI_Comm_free(&mpi_comms[i]);
+    }
+}
+
+std::vector<float> MPIGatherTimeStats(profiling_util::Timer time1, std::string f, std::string l)
+{
+    std::vector<float> times(NProcs);
+    auto p = times.data();
+    auto time_taken = profiling_util::GetTimeTaken(time1, f, l);
+    MPI_Gather(&time_taken, 1, MPI_FLOAT, p, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    return times;
+}
+
+std::tuple<float, float, float, float> TimeStats(std::vector<float> times) 
+{
+    auto ave = 0.0, std = 0.0;
+    auto mint = times[0];
+    auto maxt = times[0];
+    for (auto &t:times)
+    {
+        ave += t;
+        std += t*t;
+        mint = std::min(mint,t);
+        maxt = std::max(maxt,t);
+    }
+    float n = times.size();
+    ave /= n;
+    if (n>1) std = sqrt((std - ave*ave*n)/(n-1.0));
+    else std = 0;
+    return std::make_tuple(ave, std, mint, maxt);
+}
+
+void MPIReportTimeStats(std::vector<float> times, 
+    std::string f, std::string l)
+{
+    auto[ave, std, mint, maxt] = TimeStats(times);
+    if (ThisTask==0) {
+        std::cout<<"@"<<f<<":L"<<l<<" timing [ave,std,min,max]=[" <<ave<<","<<std<<","<<mint<<","<<maxt<<"] (microseconds)"<<std::endl;
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+}
+
+void MPIReportTimeStats(profiling_util::Timer time1, 
+    std::string f, std::string l)
+{
+    auto times = MPIGatherTimeStats(time1, f, l);
+    MPIReportTimeStats(times, f, l);
+}
+
+
+std::tuple<unsigned long long,
+    std::vector<PointData>> GenerateData(Options &opt)
+{
+    auto N = opt.npoints*opt.npoints*opt.npoints;
+    auto Nlocal = N/static_cast<unsigned long long>(NProcs);
+    if (ThisTask == NProcs - 1) Nlocal = N-Nlocal*(NProcs-1);
+    std::vector<PointData> data(Nlocal);
+    std::cout<<__func__<<": Rank "<<ThisTask<<" producing "<<Nlocal<<std::endl;
+    auto time1 = NewTimer();
+
+#if defined(USEOPENMP)
+#pragma omp parallel default(shared)
+{
+#endif
+    unsigned seed = 4320;
+    seed *= (ThisTask+1);
+    std::default_random_engine generator(seed);
+    std::uniform_real_distribution<double> pos(0.0,opt.p);
+    double x[3];
+#if defined(USEOPENMP)
+    #pragma omp for schedule(static)
+#endif
+    for (auto i = 0; i < Nlocal; i++) {
+        for (auto j = 0; j < 3; j++) {
+            data[i].x[j] = pos(generator);
+        }
+        data[i].id = i;
+        data[i].type = ThisTask;
+    }
+#if defined(USEOPENMP)
+}
+#endif
+    MPIReportTimeStats(time1, __func__, std::to_string(__LINE__));
+    return std::make_tuple(Nlocal, data);
+
+}
+
+void TransformData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data)
+{
+    std::cout<<__func__<<": Rank "<<ThisTask<<" transforming "<<Nlocal<<std::endl;
+    auto time1 = NewTimer();
+#if defined(USEOPENMP)
+#pragma omp parallel default(shared)
+{
+#endif
+    unsigned seed = 4320;
+    seed *= (ThisTask+1);
+    std::default_random_engine generator(seed);
+    auto delta = opt.deltap*opt.p/static_cast<double>(NProcs);
+    std::normal_distribution<double> pos(0,delta);
+#if defined(USEOPENMP)
+    #pragma omp for schedule(static)
+#endif
+    for (auto i = 0; i < Nlocal; i++) {
+        for (auto j = 0; j < 3; j++) {
+            data[i].x[j] += pos(generator);
+            auto y = static_cast<int>(std::floor(data[i].x[j]/opt.p));
+            if (y!=0) data[i].x[j] -= y*opt.p;
+        }
+    }
+#if defined(USEOPENMP)
+}
+#endif
+    MPIReportTimeStats(time1, __func__, std::to_string(__LINE__));
+}
+
+
+std::vector<double> GridData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data)
+{
+    auto time1 = NewTimer();
+    auto n3 = opt.ngrid * opt.ngrid * opt.ngrid;
+    auto n2 = opt.ngrid * opt.ngrid;
+    auto n = opt.ngrid;
+    double *gtemp = new double[n3];
+    std::vector<double> griddata(n3);
+    for (auto &g:griddata) g=0;
+    auto delta = opt.p/static_cast<double>(opt.ngrid);
+    unsigned long long ix,iy,iz, index;
+    for (auto &d:data) 
+    {
+        ix = d.x[0]/delta;
+        iy = d.x[1]/delta;
+        iz = d.x[2]/delta;
+        index = ix*n2 + iy*n + iz;
+        griddata[index]++;
+    }
+    auto time2 = NewTimer();
+    void * p1 = griddata.data();
+    // MPI_Allreduce(p1, MPI_IN_PLACE, n3, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(p1, gtemp, n3, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPIReportTimeStats(time2, __func__, std::to_string(__LINE__));
+    for (auto i=0ul;i<n3;i++) griddata[i] = gtemp[i];
+    delete[] gtemp;
+    MPIReportTimeStats(time1, __func__, std::to_string(__LINE__));
+    return griddata;
+}
+
+void FFTData(Options &opt, std::vector<double> &data)
+{
+}
+
+void ComputeWithData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data, std::vector<double> &griddata)
+{
+    std::cout<<__func__<<": Rank "<<ThisTask<<" computing ... "<<std::endl;
+    auto time1 = NewTimer();
+    auto n2 = opt.ngrid * opt.ngrid;
+    auto n = opt.ngrid;
+    auto delta = opt.p/static_cast<double>(opt.ngrid);
+#if defined(USEOPENMP)
+#pragma omp parallel default(shared)
+{
+#endif
+#if defined(USEOPENMP)
+    #pragma omp for schedule(static)
+#endif
+    for (auto i = 0; i < Nlocal; i++) {
+        auto ix = data[i].x[0]/delta;
+        auto iy = data[i].x[1]/delta;
+        auto iz = data[i].x[2]/delta;
+        auto index = ix*n2 + iy*n + iz;
+        // get a stencil around particle's grid point, do random stuff
+        auto x = griddata[index];
+    }
+#if defined(USEOPENMP)
+}
+#endif
+    MPIReportTimeStats(time1, __func__, std::to_string(__LINE__));
+}
+
+inline int GetProc(double w, double x) {return static_cast<int>(std::floor(x/w));}
+
+void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<PointData> &data)
+{
+    if (NProcs < 2) return;
+    std::cout<<__func__<<": Rank "<<ThisTask<<" redistributing "<<Nlocal<<std::endl;
+    std::vector<int> Nsend(NProcs), Nrecv(NProcs*NProcs);
+    unsigned long long ntotsend = 0, ntotrecv = 0;
+    auto slabwidth = opt.p/static_cast<double>(NProcs);
+
+    for (auto &x:Nsend) x=0;
+    for (auto i=0ul; i<Nlocal; i++) 
+    {
+        auto itask = GetProc(slabwidth, data[i].x[0]);
+        data[i].type = itask;
+        Nsend[itask]++;
+        if (itask == ThisTask) data[i].type = -1;
+    }
+    std::sort(data.begin(), data.end(), 
+        [](const PointData & a, const PointData & b)
+        {return a.type < b.type;});
+    std::vector<unsigned long long> noffset(NProcs);
+    Nsend[ThisTask] = 0;
+    noffset[0] = 0; 
+    for (auto &x:Nsend) ntotsend += x;
+    for (auto itask = 1; itask < NProcs; itask++) {
+        noffset[itask] = noffset[itask-1] + Nsend[itask-1];
+    }
+    for (auto &x:Nsend) x = 0;
+    std::vector<PointData> Pbuf(ntotsend);
+    for (auto i=Nlocal-ntotsend; i<Nlocal; i++) 
+    {
+        auto itask = data[i].type;
+        Pbuf[Nsend[itask] + noffset[itask]] = data[i];
+        Nsend[itask]++;
+    }
+    for (auto &x:Nrecv) x = 0;
+    // do an all reduce on Nsend
+    {
+        auto p1 = Nsend.data();
+        auto p2 = Nrecv.data();
+        MPI_Allgather(p1, NProcs, MPI_INTEGER, p2, NProcs, MPI_INTEGER, MPI_COMM_WORLD);
+    }
+    
+    for (auto i=0;i<NProcs;i++) ntotrecv += Nrecv[i*NProcs+ThisTask];
+    std::string message;
+    message = "Rank " + std::to_string(ThisTask) + " currently has " + std::to_string(Nlocal) + ". Send/Recv info is \n";
+    message += "Total [nsend,nrecv] = [" + std::to_string(ntotsend) + "," + std::to_string(ntotrecv) + "]\n";
+    for (auto itask = 0; itask<NProcs; itask++) {
+        if (ThisTask != itask) {
+            message += "\tTask=" + std::to_string(itask) + " [Nsend,Nrecv]=[" + std::to_string(Nsend[itask]) + "," + std::to_string(Nrecv[itask*NProcs + ThisTask]) + "]\n";
+        }
+    }
+    std::cout<<message<<std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto NewNlocal = Nlocal-ntotsend+ntotrecv;
+    data.resize(NewNlocal);
+    Nlocal -= ntotsend;
+    auto time2 = NewTimer();
+    std::vector<MPI_Request> sendreqs, recvreqs;
+    for (auto isend=0;isend<NProcs;isend++) 
+    {
+        if (isend != ThisTask) 
+        {
+            MPI_Request request;
+            int tag = isend + ThisTask * NProcs;
+            if (Nsend[isend] > 0) 
+            {
+                auto nbytes = Nsend[isend] * sizeof(PointData);
+                void *p1 = &Pbuf[noffset[isend]];
+                MPI_Isend(p1, nbytes, MPI_BYTE, isend, tag, MPI_COMM_WORLD, &request);
+                sendreqs.push_back(request);
+                p1 = nullptr;
+            }
+        }
+    }
+    for (auto irecv=0;irecv<NProcs;irecv++) 
+    {
+        if (irecv != ThisTask) 
+        {
+            MPI_Request request;
+            int tag = ThisTask + irecv * NProcs;
+            auto nrecv = Nrecv[irecv*NProcs + ThisTask];
+            int nbytes = nrecv * sizeof(PointData);
+            if (nbytes > 0) {
+                std::vector<PointData> Precv(nrecv);
+                void *p1 = Precv.data();
+                MPI_Irecv(p1, nbytes, MPI_BYTE, irecv, tag, MPI_COMM_WORLD, &request);
+                MPI_Wait(&request, MPI_STATUSES_IGNORE);
+                // recvreqs.push_back(request);
+                for (auto i=0;i<nrecv;i++) {
+                    data[Nlocal++] = Precv[i];
+                }
+                p1 = nullptr;
+            }
+        }
+    }
+    std::cout<<__func__<<": Rank "<<ThisTask<<" now has "<<Nlocal<<std::endl;
+    MPIReportTimeStats(time2, __func__, std::to_string(__LINE__));
+}
+
+
+
+int main(int argc, char **argv) {
+    MPI_Init(&argc, &argv);
+    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm_size(comm, &NProcs);
+    MPI_Comm_rank(comm, &ThisTask);
+    Options opt;
+
+    auto start = std::chrono::system_clock::now();
+    std::time_t start_time = std::chrono::system_clock::to_time_t(start);
+    if (ThisTask==0) std::cout << "Starting job at " << std::ctime(&start_time);
+    if (argc >= 2) opt.npoints = atoi(argv[1]);
+    if (argc >= 3) opt.Niter = atoi(argv[2]);
+    if (argc >= 4) opt.deltap = atof(argv[3]);
+
+    
+    if (ThisTask==0) LogParallelAPI();
+    MPI_Barrier(MPI_COMM_WORLD);
+    LogBinding();
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto [Nlocal, data] = GenerateData(opt);
+    RedistributeData(opt, Nlocal, data);
+    auto timeloop = NewTimer();
+    for (auto i=0;i<opt.Niter;i++) 
+    {
+        if (ThisTask == 0) std::cout<<"At iteration "<<i<<std::endl;
+        TransformData(opt, Nlocal, data);
+        auto griddata = GridData(opt, Nlocal, data);
+        FFTData(opt, griddata);
+        ComputeWithData(opt, Nlocal, data, griddata);
+        RedistributeData(opt, Nlocal, data);
+    }
+    LogTimeTaken(timeloop);
+
+    auto end = std::chrono::system_clock::now();
+    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+    if (ThisTask==0) std::cout << "Ending job at " << std::ctime(&end_time);
+    MPI_Finalize();
+    return 0;
+}
