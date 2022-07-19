@@ -338,9 +338,8 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
     if (NProcs < 2) return;
     if (ThisTask == 0) std::cout<<__func__<<" redistributing ..."<<std::endl;
     std::vector<int> Nsend(NProcs), Nrecv(NProcs*NProcs);
-    unsigned long long ntotsend = 0, ntotrecv = 0;
+    unsigned long long ntotsend = 0, ntotrecv = 0, nranksend = 0, nrankrecv = 0;
     auto slabwidth = opt.p/static_cast<double>(NProcs);
-
     for (auto &x:Nsend) x=0;
     for (auto i=0ul; i<Nlocal; i++) 
     {
@@ -355,7 +354,7 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
     std::vector<unsigned long long> noffset(NProcs);
     Nsend[ThisTask] = 0;
     noffset[0] = 0; 
-    for (auto &x:Nsend) ntotsend += x;
+    for (auto &x:Nsend) {ntotsend += x; nranksend += (x>0);}
     for (auto itask = 1; itask < NProcs; itask++) {
         noffset[itask] = noffset[itask-1] + Nsend[itask-1];
     }
@@ -374,11 +373,11 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
         auto p2 = Nrecv.data();
         MPI_Allgather(p1, NProcs, MPI_INTEGER, p2, NProcs, MPI_INTEGER, MPI_COMM_WORLD);
     }
-    
-    for (auto i=0;i<NProcs;i++) ntotrecv += Nrecv[i*NProcs+ThisTask];
+    for (auto i=0;i<NProcs;i++) {ntotrecv += Nrecv[i*NProcs+ThisTask]; nrankrecv += (Nrecv[i*NProcs+ThisTask]>0);}
     std::string message;
     message = "Rank " + std::to_string(ThisTask) + " currently has " + std::to_string(Nlocal);
     message += " total [nsend,nrecv] = [" + std::to_string(ntotsend) + "," + std::to_string(ntotrecv) + "]";
+    message += " total [nranksend,nrankrecv] = [" + std::to_string(nranksend) + "," + std::to_string(nrankrecv) + "]";
     if (opt.iverbose) {
         for (auto itask = 0; itask<NProcs; itask++) {
             if (ThisTask != itask) {
