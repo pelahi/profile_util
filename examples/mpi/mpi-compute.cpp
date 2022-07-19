@@ -1,3 +1,26 @@
+/*! \file mpi-compute.cpp
+ *  \brief Unit test for checking scaling of codes
+    This code has two phases: 
+    
+    1) generate data and redistribute : (here pt2pt where each rank likely communicates to all other ranks individualized information). 
+    2 Iterate: 
+        Tranform data: moves particle data, means that particles will need to be redistributed to appropriate mpi domains)
+        Grid data: just grid data locally and use allreduce so each mpi rank has fully updated grid
+        FFT: not yet there but useful hook to include fftw scaling
+        Calculate some data: random compute that uses the grid and particle data (not yet fleshed out) 
+        Redistribute data: pt2pt where communication zone of each rank can be tailored at runtime. 
+    
+    The arguments are (npoints, Niter, deltap, icompute, iverbose)
+    - npoints: total number of points is in fact npoints^3 
+    - Niter : number of iterations to do
+    - deltap : unitless but particles in transform data are moved by deltap * box size / NProcs. This can be used to increase the amount 
+    of communication that happens during the iteration. For instance for deltap < 1, at most the pt2pt communication of a given rank i
+    will be limited to i-1, i+1, the surrounding ranks (where communication is wrapped as the system is periodic). Increasing it to say >10 
+    or so will ensure that a given rank will communicate with most other ranks, increasing the pt2pt done during each iteration
+    - icompute : boolean say whether or not to do heavier compute per iteration
+    - iverbose: increase verbosity of output
+ */
+
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -392,6 +415,7 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
     Nlocal -= ntotsend;
     auto time2 = NewTimer();
     std::vector<MPI_Request> sendreqs, recvreqs;
+    //asynchronous sends 
     for (auto isend=0;isend<NProcs;isend++) 
     {
         if (isend != ThisTask) 
@@ -408,6 +432,7 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
             }
         }
     }
+    //asynchronous receives but after one is received, update local particles
     for (auto irecv=0;irecv<NProcs;irecv++) 
     {
         if (irecv != ThisTask) 
@@ -451,9 +476,9 @@ int main(int argc, char **argv) {
     if (argc >= 6) opt.iverbose = atoi(argv[5]);
 
     
-    if (ThisTask==0) LogParallelAPI();
+    MPILog0ParallelAPI();
     MPI_Barrier(MPI_COMM_WORLD);
-    if (opt.iverbose) LogBinding();
+    if (opt.iverbose) MPILog0Binding();
     MPI_Barrier(MPI_COMM_WORLD);
     auto timegenerate = NewTimer();
     auto [Nlocal, data] = GenerateData(opt);
