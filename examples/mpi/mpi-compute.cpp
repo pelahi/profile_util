@@ -23,12 +23,7 @@
 // #define TURNOFFMPI
 
 int ThisTask, NProcs;
-
-#define LogMPITest() if (ThisTask==0) std::cout<<" running "<<mpifunc<< " test"<<std::endl;
-#define LogMPIBroadcaster() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
-#define LogMPISender() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
-#define LogMPIReceiver() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<std::endl;
-#define LogMPIAllComm() if (ThisTask == 0) std::cout<<ThisTask<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
+#define STENCILESIZE 1
 
 struct Options
 {
@@ -37,7 +32,8 @@ struct Options
     int Niter = 100;
     double p = 1.0;
     double deltap = 0.1;
-    bool iverbose=false;
+    bool iverbose = false;
+    bool icompute = true;
 };
 
 struct PointData
@@ -262,7 +258,7 @@ void FFTData(Options &opt, std::vector<double> &data)
 #endif
 inline unsigned long long period_wrap(long long i, long long n){
     if (i<0) return n+i;
-    else if (i>n) return n-i;
+    else if (i>=n) return n-i;
     else return i;
 }
 
@@ -278,15 +274,15 @@ inline std::tuple<std::vector<unsigned long long>, std::vector<double>> getstenc
     iy = std::floor(y/delta);
     iz = std::floor(z/delta);
     int counter = 0;
-    for (auto ixx=ix-1;ixx<=ix+1; ixx++) 
+    for (auto ixx=ix-STENCILESIZE;ixx<=ix+STENCILESIZE; ixx++) 
     {
         auto iix = period_wrap(ixx, n);
         auto dx = ix - ixx;
-        for (auto iyy=iy-1;iyy<=iy+1; iyy++) 
+        for (auto iyy=iy-STENCILESIZE;iyy<=iy+STENCILESIZE; iyy++) 
         {
             auto iiy = period_wrap(iyy, n);
             auto dy = iy - iyy;
-            for (auto izz=iz-1;izz<=iz+1; izz++) 
+            for (auto izz=iz-STENCILESIZE;izz<=iz+STENCILESIZE; izz++) 
             {
                 auto iiz = period_wrap(izz, n);
                 auto dz = iz - izz;
@@ -314,9 +310,10 @@ std::vector<double> ComputeWithData(Options &opt, unsigned long long Nlocal, std
 #if defined(USEOPENMP)
     #pragma omp for schedule(static)
 #endif
-    for (auto i = 0; i < Nlocal; i++) {
+    for (auto &d:data) 
+    {
         // get a stencil around particle's grid point, do random stuff
-        auto [indices, d2] = getstencile(data[i].x[0],data[i].x[1],data[i].x[2],delta,n2,n);
+        auto [indices, d2] = getstencile(d.x[0],d.x[1],d.x[2],delta,n2,n);
         double sum = 0, w;
         unsigned long long ref;
         for (auto j = 0 ; j<indices.size();j++)
@@ -451,11 +448,13 @@ int main(int argc, char **argv) {
     if (argc >= 2) opt.npoints = atoi(argv[1]);
     if (argc >= 3) opt.Niter = atoi(argv[2]);
     if (argc >= 4) opt.deltap = atof(argv[3]);
+    if (argc >= 5) opt.icompute = atoi(argv[4]);
+    if (argc >= 6) opt.iverbose = atoi(argv[5]);
 
     
     if (ThisTask==0) LogParallelAPI();
     MPI_Barrier(MPI_COMM_WORLD);
-    //LogBinding();
+    if (opt.iverbose) LogBinding();
     MPI_Barrier(MPI_COMM_WORLD);
     auto timegenerate = NewTimer();
     auto [Nlocal, data] = GenerateData(opt);
@@ -470,7 +469,9 @@ int main(int argc, char **argv) {
 #ifdef USEFFTW
         FFTData(opt, griddata); // currently no external fftw pull
 #endif
-        auto computedata = ComputeWithData(opt, Nlocal, data, griddata);
+        if (opt.icompute) {
+            auto computedata = ComputeWithData(opt, Nlocal, data, griddata);
+        }
         RedistributeData(opt, Nlocal, data);
     }
     LogTimeTaken(timeloop);
