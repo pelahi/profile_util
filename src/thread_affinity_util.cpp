@@ -156,7 +156,7 @@ namespace profiling_util {
         MPI_Comm_size(MPI_COMM_WORLD, &NProcs);
         MPI_Comm_rank(MPI_COMM_WORLD, &ThisTask);
 #endif
-        binding_report = "Core Binding \n ======== \n";
+        if (ThisTask == 0) binding_report = "Core Binding \n ======== \n";
         cpu_set_t coremask;
         char clbuf[7 * CPU_SETSIZE], hnbuf[64];
         memset(clbuf, 0, sizeof(clbuf));
@@ -190,6 +190,25 @@ namespace profiling_util {
                 binding_report += result;
             }
         }
+#ifdef _MPI
+        // gather all strings to for outputing info 
+        std::vector<int> recvcounts(NProcs);
+        std::vector<int> offsets(NProcs);
+        int size = binding_report.length();
+        auto p1 = recvcounts.data(); 
+        MPI_Allgather(&size, 1, MPI_INTEGER, p1, 1, MPI_INTEGER, MPI_COMM_WORLD);
+        size = recvcounts[0];
+        offsets[0] = 0;
+        for (auto i=1;i<NProcs;i++) {size += recvcounts[i]; offsets[i] = offsets[i-1] + recvcounts[i-1];}
+        char newbindingreport[size];
+        auto p2 = binding_report.c_str();
+        MPI_Allgatherv(p2, binding_report.length(), MPI_CHAR,
+                newbindingreport, recvcounts.data(), offsets.data(), MPI_CHAR,
+                MPI_COMM_WORLD);
+        newbindingreport[size-1] = '\0';
+        binding_report = std::string(newbindingreport);
+#endif
+        
         return binding_report;
     }
     /// return binding as called within openmp region 
