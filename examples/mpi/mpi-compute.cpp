@@ -37,6 +37,7 @@ struct Options
     int Niter = 100;
     double p = 1.0;
     double deltap = 0.1;
+    bool iverbose=false;
 };
 
 struct PointData
@@ -193,7 +194,7 @@ std::tuple<unsigned long long,
 
 void TransformData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data)
 {
-    std::cout<<__func__<<": Rank "<<ThisTask<<" transforming "<<Nlocal<<std::endl;
+    if (ThisTask==0) std::cout<<__func__<<" transforming data ... "<<std::endl;
     auto time1 = NewTimer();
 #if defined(USEOPENMP)
 #pragma omp parallel default(shared)
@@ -207,11 +208,11 @@ void TransformData(Options &opt, unsigned long long Nlocal, std::vector<PointDat
 #if defined(USEOPENMP)
     #pragma omp for schedule(static)
 #endif
-    for (auto i = 0; i < Nlocal; i++) {
+    for (auto &d:data) {
         for (auto j = 0; j < 3; j++) {
-            data[i].x[j] += pos(generator);
-            auto y = static_cast<int>(std::floor(data[i].x[j]/opt.p));
-            if (y!=0) data[i].x[j] -= y*opt.p;
+            d.x[j] += pos(generator);
+            auto y = static_cast<int>(std::floor(d.x[j]/opt.p));
+            if (y!=0) d.x[j] -= y*opt.p;
         }
     }
 #if defined(USEOPENMP)
@@ -223,6 +224,7 @@ void TransformData(Options &opt, unsigned long long Nlocal, std::vector<PointDat
 
 std::vector<double> GridData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data)
 {
+    if (ThisTask==0) std::cout<<__func__<<" gridding ... "<<std::endl;
     auto time1 = NewTimer();
     auto n3 = opt.ngrid * opt.ngrid * opt.ngrid;
     auto n2 = opt.ngrid * opt.ngrid;
@@ -255,13 +257,56 @@ void FFTData(Options &opt, std::vector<double> &data)
 {
 }
 
-void ComputeWithData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data, std::vector<double> &griddata)
+#ifdef USEOPENMP 
+#pragam omp declare simd
+#endif
+inline unsigned long long period_wrap(long long i, long long n){
+    if (i<0) return n+i;
+    else if (i>n) return n-i;
+    else return i;
+}
+
+#ifdef USEOPENMP 
+#pragam omp declare simd
+#endif
+inline std::tuple<std::vector<unsigned long long>, std::vector<double>> getstencile(double x, double y, double z, double delta, unsigned long long n2, unsigned long long n) 
 {
-    std::cout<<__func__<<": Rank "<<ThisTask<<" computing ... "<<std::endl;
+    std::vector<unsigned long long> indices(27);
+    std::vector<double> d2(27);
+    long long ix, iy, iz;
+    ix = std::floor(x/delta);
+    iy = std::floor(y/delta);
+    iz = std::floor(z/delta);
+    int counter = 0;
+    for (auto ixx=ix-1;ixx<=ix+1; ixx++) 
+    {
+        auto iix = period_wrap(ixx, n);
+        auto dx = ix - ixx;
+        for (auto iyy=iy-1;iyy<=iy+1; iyy++) 
+        {
+            auto iiy = period_wrap(iyy, n);
+            auto dy = iy - iyy;
+            for (auto izz=iz-1;izz<=iz+1; izz++) 
+            {
+                auto iiz = period_wrap(izz, n);
+                auto dz = iz - izz;
+                indices[counter] = iix*n2 + iiy*n + iiz;
+                d2[counter] = dx*dx + dy*dy + dz*dz;
+                counter++;
+            }
+        }
+    }
+    return std::make_tuple(indices,d2);
+
+}
+std::vector<double> ComputeWithData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data, std::vector<double> &griddata)
+{
+    if (ThisTask == 0) std::cout<<__func__<<" computing ... "<<std::endl;
     auto time1 = NewTimer();
     auto n2 = opt.ngrid * opt.ngrid;
     auto n = opt.ngrid;
     auto delta = opt.p/static_cast<double>(opt.ngrid);
+    std::vector<double> somedata(n2*n);
 #if defined(USEOPENMP)
 #pragma omp parallel default(shared)
 {
@@ -270,17 +315,23 @@ void ComputeWithData(Options &opt, unsigned long long Nlocal, std::vector<PointD
     #pragma omp for schedule(static)
 #endif
     for (auto i = 0; i < Nlocal; i++) {
-        auto ix = data[i].x[0]/delta;
-        auto iy = data[i].x[1]/delta;
-        auto iz = data[i].x[2]/delta;
-        auto index = ix*n2 + iy*n + iz;
         // get a stencil around particle's grid point, do random stuff
-        auto x = griddata[index];
+        auto [indices, d2] = getstencile(data[i].x[0],data[i].x[1],data[i].x[2],delta,n2,n);
+        double sum = 0, w;
+        unsigned long long ref;
+        for (auto j = 0 ; j<indices.size();j++)
+        {
+            if (d2[j] == 0) {w = 1.0; ref = indices[j];}
+            else w = 1.0/d2[j];
+            sum += w*griddata[indices[j]];
+        }
+        somedata[ref] = sum;
     }
 #if defined(USEOPENMP)
 }
 #endif
     MPIReportTimeStats(time1, __func__, std::to_string(__LINE__));
+    return somedata;
 }
 
 inline int GetProc(double w, double x) {return static_cast<int>(std::floor(x/w));}
@@ -288,7 +339,7 @@ inline int GetProc(double w, double x) {return static_cast<int>(std::floor(x/w))
 void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<PointData> &data)
 {
     if (NProcs < 2) return;
-    std::cout<<__func__<<": Rank "<<ThisTask<<" redistributing "<<Nlocal<<std::endl;
+    if (ThisTask == 0) std::cout<<__func__<<" redistributing ..."<<std::endl;
     std::vector<int> Nsend(NProcs), Nrecv(NProcs*NProcs);
     unsigned long long ntotsend = 0, ntotrecv = 0;
     auto slabwidth = opt.p/static_cast<double>(NProcs);
@@ -329,11 +380,13 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
     
     for (auto i=0;i<NProcs;i++) ntotrecv += Nrecv[i*NProcs+ThisTask];
     std::string message;
-    message = "Rank " + std::to_string(ThisTask) + " currently has " + std::to_string(Nlocal) + ". Send/Recv info is \n";
-    message += "Total [nsend,nrecv] = [" + std::to_string(ntotsend) + "," + std::to_string(ntotrecv) + "]\n";
-    for (auto itask = 0; itask<NProcs; itask++) {
-        if (ThisTask != itask) {
-            message += "\tTask=" + std::to_string(itask) + " [Nsend,Nrecv]=[" + std::to_string(Nsend[itask]) + "," + std::to_string(Nrecv[itask*NProcs + ThisTask]) + "]\n";
+    message = "Rank " + std::to_string(ThisTask) + " currently has " + std::to_string(Nlocal);
+    message += " total [nsend,nrecv] = [" + std::to_string(ntotsend) + "," + std::to_string(ntotrecv) + "]";
+    if (opt.iverbose) {
+        for (auto itask = 0; itask<NProcs; itask++) {
+            if (ThisTask != itask) {
+                message += "\n\tTask=" + std::to_string(itask) + " [Nsend,Nrecv]=[" + std::to_string(Nsend[itask]) + "," + std::to_string(Nrecv[itask*NProcs + ThisTask]) + "]";
+            }
         }
     }
     std::cout<<message<<std::endl;
@@ -372,7 +425,6 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
                 void *p1 = Precv.data();
                 MPI_Irecv(p1, nbytes, MPI_BYTE, irecv, tag, MPI_COMM_WORLD, &request);
                 MPI_Wait(&request, MPI_STATUSES_IGNORE);
-                // recvreqs.push_back(request);
                 for (auto i=0;i<nrecv;i++) {
                     data[Nlocal++] = Precv[i];
                 }
@@ -403,18 +455,22 @@ int main(int argc, char **argv) {
     
     if (ThisTask==0) LogParallelAPI();
     MPI_Barrier(MPI_COMM_WORLD);
-    LogBinding();
+    //LogBinding();
     MPI_Barrier(MPI_COMM_WORLD);
+    auto timegenerate = NewTimer();
     auto [Nlocal, data] = GenerateData(opt);
     RedistributeData(opt, Nlocal, data);
+    LogTimeTaken(timegenerate);
     auto timeloop = NewTimer();
     for (auto i=0;i<opt.Niter;i++) 
     {
         if (ThisTask == 0) std::cout<<"At iteration "<<i<<std::endl;
         TransformData(opt, Nlocal, data);
         auto griddata = GridData(opt, Nlocal, data);
-        FFTData(opt, griddata);
-        ComputeWithData(opt, Nlocal, data, griddata);
+#ifdef USEFFTW
+        FFTData(opt, griddata); // currently no external fftw pull
+#endif
+        auto computedata = ComputeWithData(opt, Nlocal, data, griddata);
         RedistributeData(opt, Nlocal, data);
     }
     LogTimeTaken(timeloop);
