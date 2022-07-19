@@ -7,6 +7,7 @@
 
 #include <cstring>
 #include <string>
+#include <vector>
 #include <tuple>
 #include <ostream>
 #include <sstream>
@@ -303,7 +304,7 @@ std::string MPICallingRank(int task);
 #define MPILogThreadAffinity(comm) printf("%s \n", profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm).c_str());
 #define MPILoggerThreadAffinity(logger,comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
 #define MPILog0ParallelAPI() if(ThisTask==0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
-#define MPILog0Binding() if (ThisTask == 0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportBinding()<<std::endl;
+#define MPILog0Binding() {auto s =profiling_util::ReportBinding(); if (ThisTask == 0) std::cout<<_where_calling_from<<"\n"<<s<<std::endl;}
 #endif
 //@}
 
