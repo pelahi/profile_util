@@ -26,19 +26,33 @@ int ThisTask, NProcs;
 #define LogMPISender() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
 #define LogMPIReceiver() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<std::endl;
 #define LogMPIAllComm() if (ThisTask == 0) std::cout<<ThisTask<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
+#define LocalLogger() std::cout<<ThisTask<<" "<<__func__<<"L"<<__LINE__
+
+/// define what type of sends to use 
+#define USESEND 0
+#define USESSEND 1
+#define USEISEND 2
 
 struct Options
 {
-    // what times of communication  to do
+    /// what types of communication to test
     bool igather = true;
     bool ireduce = true;
     bool iscatter = true;
     bool ibcast = false;
     bool isendrecv = true;
     bool isendrecvsinglerank = true;
+    bool ilongdelay = false;
+    bool icorrectvalues = true;
+    /// root task that will get all the receives
     int roottask = 0;
-    // max message size in GB
+    int othertask = 0;
+    int usesend = USEISEND;
+    int delay = 600;
+    /// max message size in GB
     double maxgb = 1.0;
+    /// max message size in number of doubles 
+    int msize = 1000;
     int Niter = 1;
 };
 
@@ -163,8 +177,8 @@ void MPIReportTimeStats(profiling_util::Timer time1,
     MPIReportTimeStats(times, commname, message_size, f, l);
 }
 
-
-
+/// \defgroup Performance 
+//@{
 void MPITestBcast(Options &opt) 
 {
     MPI_Status status;
@@ -401,9 +415,154 @@ void MPITestAllReduce(Options &opt)
     allreducesum.shrink_to_fit();
     MPIFreeComms(mpi_comms, mpi_comms_name);
 }
+//@}
+
+/// \defgroup SanityChecks
+//@{
+
+/// Test whether the MPI interface can handle a long delay between a send and the 
+/// corresponding receive.
+void MPITestLongDelay(Options &opt) 
+{
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Status status;
+    std::string mpifunc;
+    unsigned long size = opt.msize;
+    std::vector<double> data(size);
+    void * p1 = nullptr, *p2 = nullptr;
+
+    mpifunc = "longdelay";
+    for (auto &d:data) d = pow(2.0,ThisTask);
+    auto time1 = NewTimer();
+
+    if (ThisTask != opt.othertask) sleep(opt.delay);
+    if (ThisTask == opt.roottask) 
+    {
+        for (auto itask = 0;itask<NProcs;itask++) 
+        {
+            if (itask == opt.roottask) continue;
+            int mpi_err;
+            LocalLogger()<<" receiving from "<<itask<<std::endl;
+            mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, MPI_COMM_WORLD, &status);
+            LocalLogger()<<" size "<<size<<" received from "<<itask<<" with mpi return of " <<mpi_err<<std::endl;
+            data.resize(size);
+            p1 = data.data();
+            mpi_err = MPI_Recv(p1, size, MPI_DOUBLE, itask, 0, MPI_COMM_WORLD, &status);
+            LocalLogger()<<" received from "<<itask<<" with mpi return of "<<mpi_err<<std::endl;
+        }
+    }
+    else {
+        MPI_Request request;
+        int mpi_err;
+        LocalLogger()<<" sending to "<<opt.roottask<<" with send type of "<<opt.usesend<<std::endl;
+        size = data.size();
+        p1 = data.data();
+        if (opt.usesend == USESEND) {
+            mpi_err = MPI_Send(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Send(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+        }
+        else if (opt.usesend == USEISEND) 
+        {
+            mpi_err = MPI_Isend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD, &request);
+            mpi_err = MPI_Isend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD, &request);
+        }
+        else if (opt.usesend == USESSEND) 
+        {
+            mpi_err = MPI_Ssend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Ssend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+        }
+        LocalLogger()<<" sent to "<<opt.roottask<<" with "<<mpi_err<<std::endl;
+    }
+    if (ThisTask==0) LogTimeTaken(time1);
+    data.clear();
+    data.shrink_to_fit();
+    p1 = p2 = nullptr;
+}
+
+/// Test whether the MPI interface sends the correct data 
+void MPITestCorrectSendRecv(Options &opt) 
+{
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Status status;
+    std::string mpifunc;
+    unsigned long size = 5;
+    std::vector<double> data(size);
+    void * p1 = nullptr, *p2 = nullptr;
+
+    mpifunc = "correct values";
+    for (auto &d:data) d = pow(2.0,ThisTask);
+    auto time1 = NewTimer();
+    if (ThisTask == opt.roottask) 
+    {
+        auto oldsize = size;
+        for (auto itask = 0;itask<NProcs;itask++) 
+        {
+            if (itask == opt.roottask) continue;
+            int mpi_err;
+            LocalLogger()<<" receiving from "<<itask<<std::endl;
+            mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, MPI_COMM_WORLD, &status);
+            LocalLogger()<<" size "<<size<<" received from "<<itask<<" with " <<mpi_err<<std::endl;
+            if (size != oldsize) {
+                LocalLogger()<<" GOT WRONG SIZE VALUE from "<<itask<<std::endl;
+                MPI_Abort(MPI_COMM_WORLD,8);
+            }
+            data.resize(size);
+            p1 = data.data();
+            mpi_err = MPI_Recv(p1, size, MPI_DOUBLE, itask, 0, MPI_COMM_WORLD, &status);
+            std::vector<double> refdata(oldsize);
+            for (auto &d:refdata) d = pow(2.0,itask);
+            for (auto i=0;i<oldsize;i++) {
+                if (data[i] != refdata[i]) {
+                    LocalLogger()<<" GOT WRONG data VALUE from "<<itask<<std::endl;
+                    MPI_Abort(MPI_COMM_WORLD,8);
+                }
+            }
+
+            std::string s;
+            for (auto &d:data) s+=std::to_string(d) + " ";
+            LocalLogger()<<" received from "<<itask<<" with "<<mpi_err<<std::endl;
+        }
+    }
+    else {
+        MPI_Request request;
+        int mpi_err;
+        LocalLogger()<<" sending to "<<opt.roottask<<" with send type of "<<opt.usesend<<std::endl;
+        size = data.size();
+        p1 = data.data();
+        if (opt.usesend == USESEND) {
+            mpi_err = MPI_Send(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Send(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+        }
+        else if (opt.usesend == USEISEND) 
+        {
+            mpi_err = MPI_Isend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD, &request);
+            mpi_err = MPI_Isend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD, &request);
+        }
+        else if (opt.usesend == USESSEND) 
+        {
+            mpi_err = MPI_Ssend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Ssend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+        }
+        LocalLogger()<<" sent to "<<opt.roottask<<" with "<<mpi_err<<std::endl;
+    }
+    if (ThisTask==0) LogTimeTaken(time1);
+    data.clear();
+    data.shrink_to_fit();
+    p1 = p2 = nullptr;
+}
+//@}
 
 void MPIRunTests(Options &opt)
 {
+    if (opt.ilongdelay) {
+        MPITestLongDelay(opt);
+        return;
+    }
+    if (opt.icorrectvalues) {
+        MPITestCorrectSendRecv(opt);
+        return;
+    }
     if (opt.isendrecvsinglerank) MPITestSendRecvSingleRank(opt);
     if (opt.igather) MPITestAllGather(opt);
     if (opt.iscatter) MPITestAllScatter(opt);
@@ -424,10 +583,13 @@ int main(int argc, char **argv) {
     if (ThisTask==0) std::cout << "Starting job at " << std::ctime(&start_time);
     if (argc >= 2) opt.maxgb = atof(argv[1]);
     if (argc == 3) opt.Niter = atof(argv[2]);
+    // default value for 2 node tests assuming that same number of tasks per node 
+    // ensures that othertask is testing internode communication
+    // alter if want intranode communcation to something like opt.roottask + 1;
+    opt.othertask = NProcs/2 + 1;
     
-    if (ThisTask==0) LogParallelAPI();
-    MPI_Barrier(MPI_COMM_WORLD);
-    LogBinding();
+    MPILog0ParallelAPI();
+    MPILog0Binding();
     MPI_Barrier(MPI_COMM_WORLD);
     MPIRunTests(opt);
 
