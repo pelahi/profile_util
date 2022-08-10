@@ -23,10 +23,13 @@ template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
     if (N>10000)
     {
         LogThreadAffinity();
+//        #pragma omp for 
+//        for (auto &x:v)
         #pragma omp for 
-        for (auto &x:v)
+        for (auto i=0;i<v.size();i++)
         {
-            x = distr(gen);
+            v[i] = distr(gen);
+            //x = distr(gen);
         }
     }
     LogTimeTaken(t_init);
@@ -44,9 +47,16 @@ template<class T> T vector_sq_and_sum(std::vector<T> &v)
     if (v.size()>1000)
     {
         LogThreadAffinity();
-        #pragma omp for reduction(+:sum) nowait 
+        /*#pragma omp for reduction(+:sum) nowait 
         for (auto &x:v) 
         {
+            //x = x*x;
+            sum += x*x;
+        }*/
+        #pragma omp for reduction(+:sum) nowait 
+        for (auto i=0;i<v.size();i++)
+        {
+        	auto x = v[i];
             //x = x*x;
             sum += x*x;
         }
@@ -76,7 +86,11 @@ template<class T> void recursive_vector(std::vector<T> &v)
         std::uniform_int_distribution<> distr(0,v.size()); // define the range
         auto split = distr(gen);
         std::vector<T> left, right;
-        std::cout<<"@"<<__func__<<" L"<<__LINE__<<" spliting vector of size "<<v.size()<<" at "<<split<<" at level "<<omp_get_level()<<std::endl;
+        int level=1;
+        #ifdef USEOPENMP
+        level = omp_get_level();
+        #endif
+        std::cout<<"@"<<__func__<<" L"<<__LINE__<<" spliting vector of size "<<v.size()<<" at "<<split<<" at level "<<level<<std::endl;
         #pragma omp parallel \
         default(none) shared(v, split, left, right) 
         {
@@ -213,16 +227,15 @@ void vector_vectorization_test(unsigned long long Nentries,
     LogTimeTaken(time_sillycalc);
 }
 
-int main() {
+int main(int argc, char **argv) {
     LogParallelAPI();
     LogBinding();
 
     std::vector<int> x_int, y_int;
     std::vector<float> x_float, y_float;
     std::vector<double> x_double, y_double;
-    //const unsigned long long Nentries = 215*1024.0*1024.0*1024.0/(4*4+2*8);
-    const unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0/16.0;
-    //const unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0/16.0/4.0;
+    unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0;
+    if (argc == 2) Nentries = atoi(argv[2]);
 
     //allocate, test vectorization and deallocate
     //functions showcase use of logging time taken and mem usage
@@ -232,10 +245,10 @@ int main() {
 
     //allocate mem and init vector using random numbers 
     unsigned long long N=100000000;
-    //x_double = allocate_and_init_vector<double>(N);
+    x_double = allocate_and_init_vector<double>(N);
     //recursive call highlights thread affinity reporting
     auto t1 = NewTimer();
-    //recursive_vector(x_double);
+    recursive_vector(x_double);
     LogTimeTaken(t1);
 
 }

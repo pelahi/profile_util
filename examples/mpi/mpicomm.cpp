@@ -18,15 +18,25 @@
 
 // if want to try running code but not do any actual communication
 // #define TURNOFFMPI
+#define MEMFOOTPRINTTEST
 
 int ThisTask, NProcs;
+std::chrono::system_clock::time_point logtime;
+std::time_t log_time;
+char wherebuff[1000];
+std::string whenbuff;
 
-#define LogMPITest() if (ThisTask==0) std::cout<<" running "<<mpifunc<< " test"<<std::endl;
-#define LogMPIBroadcaster() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
-#define LogMPISender() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
-#define LogMPIReceiver() if (ThisTask == itask) std::cout<<ThisTask<<" running "<<mpifunc<<std::endl;
-#define LogMPIAllComm() if (ThisTask == 0) std::cout<<ThisTask<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
-#define LocalLogger() std::cout<<ThisTask<<" "<<__func__<<"L"<<__LINE__
+#define Where() sprintf(wherebuff,"[%04d] @%sL%d ", ThisTask,__func__, __LINE__);
+#define When() logtime = std::chrono::system_clock::now(); log_time = std::chrono::system_clock::to_time_t(logtime);whenbuff=std::ctime(&log_time);whenbuff.erase(std::find(whenbuff.begin(), whenbuff.end(), '\n'), whenbuff.end());
+#define LocalLogger() Where();std::cout<<wherebuff<<" : " 
+#define Rank0LocalLogger() Where();if (ThisTask==0) std::cout<<wherebuff<<" : " 
+#define LocalLoggerWithTime() Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : "
+#define Rank0LocalLoggerWithTime() Where();When(); if (ThisTask==0) std::cout<<wherebuff<<" ("<<whenbuff<<") : "
+#define LogMPITest() Rank0LocalLoggerWithTime()<<" running "<<mpifunc<< " test"<<std::endl;
+#define LogMPIBroadcaster() if (ThisTask == itask) LocalLoggerWithTime()<<" running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
+#define LogMPISender() LocalLoggerWithTime()<<" Running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
+#define LogMPIReceiver() if (ThisTask == itask) LocalLoggerWithTime()<<" running "<<mpifunc<<std::endl;
+#define LogMPIAllComm() Rank0LocalLoggerWithTime()<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
 
 /// define what type of sends to use 
 #define USESEND 0
@@ -41,9 +51,15 @@ struct Options
     bool iscatter = true;
     bool ibcast = false;
     bool isendrecv = true;
+<<<<<<< Updated upstream
     bool isendrecvsinglerank = true;
     bool ilongdelay = false;
     bool icorrectvalues = true;
+=======
+    bool isendrecvsinglerank = false;
+    bool ilongdelay = false;
+    bool icorrectvalues = false;
+>>>>>>> Stashed changes
     /// root task that will get all the receives
     int roottask = 0;
     int othertask = 0;
@@ -97,10 +113,11 @@ std::tuple<int,
     NProcsLocal.resize(numcoms);
     mpi_comms.resize(numcoms);
     mpi_comms_name.resize(numcoms);
-    for (auto i=0;i<numcoms;i++) 
-    {
-        if (ThisLocalTask[i]==0) std::cout<<" MPI communicator "<<mpi_comms_name[i]<<" has size of "<<NProcsLocal[i]<<" and there are "<<NLocalComms[i]<<" communicators"<<std::endl;
-    }
+    // for (auto i=0;i<numcoms;i++) 
+    // {
+    //     if (ThisLocalTask[i]==0) LocalLoggerWithTime()<<" MPI communicator "<<mpi_comms_name[i]<<" has size of "<<NProcsLocal[i]<<" and there are "<<NLocalComms[i]<<" communicators"<<std::endl;
+    // }
+
     MPI_Barrier(mpi_comms[numcoms-1]);
     return std::make_tuple(numcoms,
         std::move(mpi_comms),
@@ -113,7 +130,7 @@ std::tuple<int,
 
 void MPIFreeComms(std::vector<MPI_Comm> &mpi_comms, std::vector<std::string> &mpi_comms_name){
     for (auto i=0;i<mpi_comms.size()-1;i++) {
-        if (ThisTask==0) std::cout<<"Freeing "<<mpi_comms_name[i]<<std::endl;
+        Rank0LocalLoggerWithTime()<<"Freeing "<<mpi_comms_name[i]<<std::endl;
         MPI_Comm_free(&mpi_comms[i]);
     }
 }
@@ -125,7 +142,7 @@ std::vector<unsigned long long> MPISetSize(double maxgb)
     for (auto i=1;i<sizeofsends.size();i++) sizeofsends[i] = sizeofsends[i-1]/8;
     std::sort(sizeofsends.begin(),sizeofsends.end());
     
-    if (ThisTask==0) for (auto &x: sizeofsends) std::cout<<"Messages of "<<x<<" elements and "<<x*sizeof(double)/1024./1024./1024.<<" GB"<<std::endl;
+    if (ThisTask==0) {for (auto &x: sizeofsends) {LocalLoggerWithTime()<<"Messages of "<<x<<" elements and "<<x*sizeof(double)/1024./1024./1024.<<" GB"<<std::endl;}}
     MPI_Barrier(MPI_COMM_WORLD);
     return sizeofsends;
 }
@@ -163,9 +180,7 @@ void MPIReportTimeStats(std::vector<float> times,
     std::string f, std::string l)
 {
     auto[ave, std, mint, maxt] = TimeStats(times);
-    if (ThisTask==0) {
-        std::cout<<"MPI Comm="<<commname<<" @"<<f<<":L"<<l<<" - message size="<<message_size<<" timing [ave,std,min,max]=[" <<ave<<","<<std<<","<<mint<<","<<maxt<<"] (microseconds)"<<std::endl;
-    }
+    Rank0LocalLoggerWithTime()<<"MPI Comm="<<commname<<" @"<<f<<":L"<<l<<" - message size="<<message_size<<" timing [ave,std,min,max]=[" <<ave<<","<<std<<","<<mint<<","<<maxt<<"] (microseconds)"<<std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
@@ -197,7 +212,7 @@ void MPITestBcast(Options &opt)
         auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
         LogMPIAllComm();
         data.resize(sizeofsends[i]);
-        if (ThisTask==0) LogMemUsage();
+        if (ThisTask==0) {Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();}
         for (auto &d:data) d = pow(2.0,ThisTask);
         p1 = data.data();
         auto time1 = NewTimer();
@@ -205,7 +220,7 @@ void MPITestBcast(Options &opt)
         {
 #ifdef TURNOFFMPI
 #else
-            if (ThisLocalTask[j] == 0) std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;
+            if (ThisLocalTask[j] == 0) {std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
             std::vector<float> times;
             for (auto itask=0;itask<NProcs;itask++) 
             {
@@ -247,7 +262,7 @@ void MPITestSendRecvSingleRank(Options &opt)
         LogMPIAllComm();
         senddata.resize(sizeofsends[i]);
         receivedata.resize(sizeofsends[i]);
-        if (ThisTask==0) LogMemUsage();
+        if (ThisTask==0) {Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();}
         for (auto &d:senddata) d = pow(2.0,ThisTask);
         p1 = senddata.data();
         p2 = receivedata.data();
@@ -276,7 +291,7 @@ void MPITestSendRecvSingleRank(Options &opt)
         }
         MPI_Barrier(MPI_COMM_WORLD);
         if (ThisTask == opt.roottask) {
-            std::cout<<"MPI Comm="<<commsname<<" @"<<__func__<<":L"<<std::to_string(__LINE__)<<" - message size="<<sizeofsends[i]<<" timing in microseconds from "<<opt.roottask<<" to "<<std::endl;
+            Rank0LocalLoggerWithTime()<<"MPI Comm="<<commsname<<" @"<<__func__<<":L"<<std::to_string(__LINE__)<<" - message size="<<sizeofsends[i]<<" timing in microseconds from "<<opt.roottask<<" to "<<std::endl;
             for (auto &m:messages) std::cout<<"\t"<<m<<std::endl;
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -300,22 +315,32 @@ void MPITestSendRecv(Options &opt)
     // now allreduce 
     mpifunc = "sendrecv";
     LogMPITest();
+#ifdef MEMFOOTPRINTTEST
+    {
+        auto i = sizeofsends.size()-1;
+#else 
     for (auto i=0;i<sizeofsends.size();i++) 
     {
+#endif
         auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
         LogMPIAllComm();
         senddata.resize(sizeofsends[i]);
         receivedata.resize(sizeofsends[i]);
-        if (ThisTask==0) LogMemUsage();
+        if (ThisTask==0) {Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();}
         for (auto &d:senddata) d = pow(2.0,ThisTask);
         p1 = senddata.data();
         p2 = receivedata.data();
+#ifdef MEMFOOTPRINTTEST
+        Rank0LocalLoggerWithTime()" tasks sleeping after allocating memory"<<std::endl;
+        sleep(10);
+        MPI_Barrier(MPI_COMM_WORLD);
+#endif
         auto time1 = NewTimer();
         for (auto j=0;j<mpi_comms.size();j++)
         {
 #ifdef TURNOFFMPI
 #else
-            if (ThisLocalTask[j] == 0) std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;
+            if (ThisLocalTask[j] == 0) {LocalLoggerWithTime()<<"Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
             std::vector<float> times;
             for (auto iter=0;iter<opt.Niter;iter++) {
                 auto time2 = NewTimer();
@@ -330,6 +355,7 @@ void MPITestSendRecv(Options &opt)
                         sendreqs.push_back(request);
                     }
                 }
+                LocalLoggerWithTime()<<" Placed isends "<<std::endl;
                 for (auto irecv=0;irecv<NProcsLocal[j];irecv++) 
                 {
                     if (irecv != ThisLocalTask[j]) 
@@ -341,6 +367,7 @@ void MPITestSendRecv(Options &opt)
                     }
                 }
                 MPI_Waitall(recvreqs.size(), recvreqs.data(), MPI_STATUSES_IGNORE);
+                LocalLoggerWithTime()<<" Received ireceives "<<std::endl;
                 auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
                 times.insert(times.end(), times_tmp.begin(), times_tmp.end());
             }
@@ -380,22 +407,39 @@ void MPITestAllReduce(Options &opt)
     // now allreduce 
     mpifunc = "allreduce";
     LogMPITest();
+#ifdef TURNOFFMPI
+    data.resize(sizeofsends[sizeofsends.size()-1]);
+    allreducesum.resize(sizeofsends[sizeofsends.size()-1]);
+    for (auto &d:data) d = pow(2.0,ThisTask);
+    sleep(10);
+    for (auto &d:allreducesum) d = pow(2.0,ThisTask);
+#endif
+#ifdef MEMFOOTPRINTTEST
+    {
+        auto i = sizeofsends.size()-1;
+#else 
     for (auto i=0;i<sizeofsends.size();i++) 
     {
+#endif
         auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
         LogMPIAllComm();
         data.resize(sizeofsends[i]);
         allreducesum.resize(sizeofsends[i]);
-        if (ThisTask==0) LogMemUsage();
+        if (ThisTask==0) {Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();}
         for (auto &d:data) d = pow(2.0,ThisTask);
         p1 = data.data();
         p2 = allreducesum.data();
+#ifdef MEMFOOTPRINTTEST
+        Rank0LocalLoggerWithTime()<<" tasks sleeping after allocating memory"<<std::endl;
+        sleep(10);
+        MPI_Barrier(MPI_COMM_WORLD);
+#endif
         auto time1 = NewTimer();
         for (auto j=0;j<mpi_comms.size();j++) 
         {
 #ifdef TURNOFFMPI
 #else
-            if (ThisLocalTask[j] == 0) std::cout<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;
+            if (ThisLocalTask[j] == 0) {LocalLoggerWithTime()<<"Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
             std::vector<float> times;
             for (auto iter=0;iter<opt.Niter;iter++) {
                 auto time2 = NewTimer();
@@ -566,9 +610,20 @@ void MPIRunTests(Options &opt)
     if (opt.isendrecvsinglerank) MPITestSendRecvSingleRank(opt);
     if (opt.igather) MPITestAllGather(opt);
     if (opt.iscatter) MPITestAllScatter(opt);
+    for (auto i=0;i<3;i++) {
     if (opt.ireduce) MPITestAllReduce(opt);
+    sleep(5);
+    if (ThisTask==0) {Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();}
+    MPI_Barrier(MPI_COMM_WORLD);
+    }
     if (opt.ibcast) MPITestBcast(opt);
+
+    for (auto i=0;i<2;i++) {
     if (opt.isendrecv) MPITestSendRecv(opt);
+    sleep(5);
+    if (ThisTask==0) {Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();}
+    MPI_Barrier(MPI_COMM_WORLD);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -578,11 +633,19 @@ int main(int argc, char **argv) {
     MPI_Comm_rank(comm, &ThisTask);
     Options opt;
 
+    // init logger time
+    logtime = std::chrono::system_clock::now();
+    log_time = std::chrono::system_clock::to_time_t(logtime);
     auto start = std::chrono::system_clock::now();
     std::time_t start_time = std::chrono::system_clock::to_time_t(start);
-    if (ThisTask==0) std::cout << "Starting job at " << std::ctime(&start_time);
+    Rank0LocalLoggerWithTime()<<"Starting job "<<std::endl;
     if (argc >= 2) opt.maxgb = atof(argv[1]);
     if (argc == 3) opt.Niter = atof(argv[2]);
+    opt.othertask = NProcs/2 + 1;
+    // if (argc >= 2) opt.delay = atoi(argv[1]);
+    // if (argc >= 3) opt.msize = atoi(argv[2]);
+    // if (argc >= 4) opt.othertask = atoi(argv[3]);
+
     // default value for 2 node tests assuming that same number of tasks per node 
     // ensures that othertask is testing internode communication
     // alter if want intranode communcation to something like opt.roottask + 1;
@@ -593,9 +656,7 @@ int main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     MPIRunTests(opt);
 
-    auto end = std::chrono::system_clock::now();
-    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
-    if (ThisTask==0) std::cout << "Ending job at " << std::ctime(&end_time);
+    Rank0LocalLoggerWithTime()<<"Ending job "<<std::endl;
     MPI_Finalize();
     return 0;
 }
