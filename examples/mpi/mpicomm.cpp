@@ -51,15 +51,9 @@ struct Options
     bool iscatter = true;
     bool ibcast = false;
     bool isendrecv = true;
-<<<<<<< Updated upstream
-    bool isendrecvsinglerank = true;
-    bool ilongdelay = false;
-    bool icorrectvalues = true;
-=======
     bool isendrecvsinglerank = false;
     bool ilongdelay = false;
     bool icorrectvalues = false;
->>>>>>> Stashed changes
     /// root task that will get all the receives
     int roottask = 0;
     int othertask = 0;
