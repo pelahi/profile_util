@@ -15,6 +15,8 @@
 #include <chrono>
 #include <fstream>
 #include <iomanip>
+#include <memory>
+#include <array>
 
 #include <sched.h>
 #include <stdlib.h>
