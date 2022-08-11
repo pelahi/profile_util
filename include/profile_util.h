@@ -58,6 +58,11 @@ namespace profiling_util {
     std::string MPIReportThreadAffinity(std::string func, std::string line, MPI_Comm &comm);
 #endif
 
+    /// run a command
+    /// @param cmd string of command to run on system
+    /// @return string of MPI comm rank and thread core affinity 
+    std::string exec_sys_cmd(std::string cmd);
+
     namespace detail {
 
         template <int N, typename T>
@@ -207,6 +212,16 @@ namespace profiling_util {
         memory_stats rss;
     };
 
+    struct sys_memory_stats
+    {
+        std::size_t total;
+        std::size_t used;
+        std::size_t free;
+        std::size_t shared;
+        std::size_t cache;
+        std::size_t avail;
+    };
+
     ///get memory usage
     memory_usage get_memory_usage();
     ///report memory usage from within a specific function/scope
@@ -218,6 +233,18 @@ namespace profiling_util {
     /// like ReportMemUsage but also returns the mem usage 
     std::tuple<std::string, memory_usage> GetMemUsage(const std::string &f, const std::string &l);
     std::tuple<std::string, memory_usage> GetMemUsage(const memory_usage &prior_mem_use, const std::string &f, const std::string &l);
+
+    /// get the memory of the system using free
+    sys_memory_stats get_system_memory();
+    ///report memory state of the system from within a specific function/scope
+    ///usage would be from within a function use 
+    ///auto l=std::to_string(__LINE__); auto f = __func__; GetMemUsage(f,l);
+    std::string ReportSystemMem(const std::string &f, const std::string &l);
+    /// like above but also reports change relative to another sampling of memory 
+    std::string ReportSystemMem(const sys_memory_stats &prior_mem_use, const std::string &f, const std::string &l);
+    /// like ReportSystemMem but also returns the system memory
+    std::tuple<std::string, sys_memory_stats> GetSystemMem(const std::string &f, const std::string &l);
+    std::tuple<std::string, sys_memory_stats> GetSystemMem(const sys_memory_stats &prior_mem_use, const std::string &f, const std::string &l);
 
     /// Timer class. 
     /// In code create an instance of time and then just a mantter of 
@@ -316,6 +343,12 @@ std::string MPICallingRank(int task);
 #ifdef _MPI
 #define MPILogMemUsage() std::cout<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
 #define MPILoggerMemUsage(logger) logger<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#endif
+#define LogSystemMem() std::cout<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerSystemMem(logger) logger<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#ifdef _MPI
+#define MPILogSystemMem() std::cout<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerSystemMem(logger) logger<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
 #endif
 //@}
 
