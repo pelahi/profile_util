@@ -264,7 +264,7 @@ namespace profiling_util {
         result += " Thread " + std::to_string(thread);
         result +=" at level " + std::to_string(level) + " : ";
 
-        result += " Core affinity = " + std::string(clbuf) + " \n ";
+        result += " Core affinity = " + std::string(clbuf) + " ";
         result += " Core placement = " + std::to_string(sched_getcpu()) + " ";
         result += "\n";
 

@@ -1,7 +1,7 @@
 # Simple Makefile
 
 OUTPUTFILEBASE=libprofile_util
-CXXFLAGS = -fPIC -std=c++14 -O2
+CXXFLAGS = -fPIC -std=c++17 -O2
 OMPFLAGS ?= -fopenmp
 EXTRAFLAGS ?= 
 COMPILER ?=$(CXX)

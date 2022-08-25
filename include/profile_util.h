@@ -204,14 +204,25 @@ namespace profiling_util {
     }
 
     struct memory_stats {
-        std::size_t current;
-        std::size_t peak;
-        std::size_t change;
+        std::size_t current = 0;
+        std::size_t peak = 0;
+        std::size_t change = 0;
     };
 
     struct memory_usage {
         memory_stats vm;
         memory_stats rss;
+        memory_usage operator+=(const memory_usage& rhs)
+        {
+            this->vm.current += rhs.vm.current;
+            if (this->vm.peak < rhs.vm.peak) this->vm.peak = rhs.vm.peak;
+            this->vm.change += rhs.vm.change;
+
+            this->rss.current += rhs.rss.current;
+            if (this->rss.peak < rhs.rss.peak) this->vm.peak = rhs.rss.peak;
+            this->rss.change += rhs.rss.change;
+            return *this;
+        };
     };
 
     struct sys_memory_stats
@@ -235,6 +246,14 @@ namespace profiling_util {
     /// like ReportMemUsage but also returns the mem usage 
     std::tuple<std::string, memory_usage> GetMemUsage(const std::string &f, const std::string &l);
     std::tuple<std::string, memory_usage> GetMemUsage(const memory_usage &prior_mem_use, const std::string &f, const std::string &l);
+    /// Get memory usage on all hosts 
+    #ifdef _MPI
+    std::tuple<std::string, std::vector<std::string>, std::vector<memory_usage>> MPIGetNodeMemUsage(MPI_Comm &comm, 
+    const std::string &function, 
+    const std::string &line_num
+    );
+    #endif
+
 
     /// get the memory of the system using free
     sys_memory_stats get_system_memory();

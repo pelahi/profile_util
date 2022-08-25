@@ -2,6 +2,9 @@
  *  \brief Get memory 
  */
 
+#include <unordered_set>
+#include <map>
+
 #include "profile_util.h"
 
 /// get the memory use looking as the /proc/self/status file 
@@ -159,6 +162,67 @@ namespace profiling_util {
         append_memory_stats("RSS", memory_usage.rss);
         return std::make_tuple(memory_report.str(), memory_usage);
     }
+
+    #ifdef _MPI 
+    inline std::string _gethostname(){
+        char hnbuf[64];
+        memset(hnbuf, 0, sizeof(hnbuf));
+        (void)gethostname(hnbuf, sizeof(hnbuf));
+        return std::string(hnbuf);
+    }
+    std::tuple<std::string, std::vector<std::string>, std::vector<memory_usage>> MPIGetNodeMemUsage(
+        MPI_Comm &comm, 
+        const std::string &function, 
+        const std::string &line_num
+    )
+    {
+        // parse comm to find unique hosts
+        int commsize;
+        MPI_Comm_size(comm, &commsize);
+        char allhostnames[64*commsize];
+        auto hostname = _gethostname().c_str();
+        std::unordered_set<std::string> hostnames;
+        MPI_Gather(hostname, 64, MPI_CHAR, allhostnames, 64, MPI_CHAR, 0, comm);
+        for (auto i=0;i<commsize;i++) 
+        {
+            std::string s;
+            for (auto j=0;j<64;j++) s += allhostnames[i*64+j];
+            hostnames.insert(s);
+        }
+        // get gather memory usage for all mpi ranks and sum them
+        auto mem = get_memory_usage();
+        std::vector<memory_usage> allmems(commsize);
+        MPI_Gather(&mem, sizeof(memory_usage), MPI_BYTE, allmems.data(), 64, MPI_CHAR, 0, comm);
+        std::map<std::string, memory_usage> memonhost;
+        memory_usage nomem;
+        for (auto &s:hostnames) memonhost.insert(std::pair<std::string,memory_usage>(s,nomem));
+        for (auto i=0;i<commsize;i++) 
+        {
+            std::string s;
+            for (auto j=0;j<64;j++) s += allhostnames[i*64+j];
+            memonhost[s] += allmems[i];
+        }
+        // no construct memory report
+        std::ostringstream memory_report;
+        std::vector<std::string> namehosts;
+        std::vector<memory_usage> memhosts;
+        auto append_memory_stats = [&memory_report](const char *name, const memory_stats &stats) {
+            memory_report << name << " current/peak/change : " << memory_amount(stats.current) << " / " << memory_amount(stats.peak)<< " / "<< memory_amount(stats.change);
+        };
+        memory_report << "Node memory report @ " << function << " L"<<line_num <<" : ";
+        for (auto &m:memonhost) {
+            memory_report << "Node : " << m.first<<" : ";
+            append_memory_stats("VM", m.second.vm);
+            memory_report << "; ";
+            append_memory_stats("RSS", m.second.rss);
+            memory_report <<" \n";
+            namehosts.push_back(m.first);
+            memhosts.push_back(m.second);
+        }
+        return std::make_tuple(memory_report.str(), namehosts, memhosts);
+    }
+
+    #endif
 
     std::string ReportSystemMem(
         const std::string &function, 
