@@ -170,6 +170,16 @@ namespace profiling_util {
         (void)gethostname(hnbuf, sizeof(hnbuf));
         return std::string(hnbuf);
     }
+    std::string MPIReportNodeMemUsage(
+        MPI_Comm &comm, 
+        const std::string &function, 
+        const std::string &line_num
+    )
+    {
+        auto [report, nodes, mem] = MPIGetNodeMemUsage(comm, function, line_num);
+        return report;
+    }
+
     std::tuple<std::string, std::vector<std::string>, std::vector<memory_usage>> MPIGetNodeMemUsage(
         MPI_Comm &comm, 
         const std::string &function, 
@@ -177,44 +187,115 @@ namespace profiling_util {
     )
     {
         // parse comm to find unique hosts
-        int commsize;
+        int commsize, rank;
         MPI_Comm_size(comm, &commsize);
-        char allhostnames[64*commsize];
-        auto hostname = _gethostname().c_str();
+        MPI_Comm_rank(comm, &rank);
+        auto hostname = _gethostname();
+        int size = hostname.size()+1, maxsize = 0;
+        MPI_Allreduce(&size, &maxsize, 1, MPI_INTEGER, MPI_MAX, comm);
+        std::vector<char> allhostnames(maxsize*commsize);
+        for (auto i=size;i<maxsize;i++) hostname+=" ";
+        MPI_Gather(hostname.c_str(), maxsize, MPI_CHAR, allhostnames.data(), maxsize, MPI_CHAR, 0, comm);
         std::unordered_set<std::string> hostnames;
-        MPI_Gather(hostname, 64, MPI_CHAR, allhostnames, 64, MPI_CHAR, 0, comm);
         for (auto i=0;i<commsize;i++) 
         {
             std::string s;
-            for (auto j=0;j<64;j++) s += allhostnames[i*64+j];
+            for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
             hostnames.insert(s);
         }
         // get gather memory usage for all mpi ranks and sum them
         auto mem = get_memory_usage();
         std::vector<memory_usage> allmems(commsize);
-        MPI_Gather(&mem, sizeof(memory_usage), MPI_BYTE, allmems.data(), 64, MPI_CHAR, 0, comm);
+        MPI_Gather(&mem, sizeof(memory_usage), MPI_BYTE, allmems.data(), sizeof(memory_usage), MPI_BYTE, 0, comm);
         std::map<std::string, memory_usage> memonhost;
         memory_usage nomem;
         for (auto &s:hostnames) memonhost.insert(std::pair<std::string,memory_usage>(s,nomem));
         for (auto i=0;i<commsize;i++) 
         {
             std::string s;
-            for (auto j=0;j<64;j++) s += allhostnames[i*64+j];
+            for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
             memonhost[s] += allmems[i];
         }
-        // no construct memory report
+        // now construct memory report
         std::ostringstream memory_report;
         std::vector<std::string> namehosts;
         std::vector<memory_usage> memhosts;
         auto append_memory_stats = [&memory_report](const char *name, const memory_stats &stats) {
             memory_report << name << " current/peak/change : " << memory_amount(stats.current) << " / " << memory_amount(stats.peak)<< " / "<< memory_amount(stats.change);
         };
-        memory_report << "Node memory report @ " << function << " L"<<line_num <<" : ";
+        memory_report << "Node memory report @ " << function << " L"<<line_num <<" :\n";
         for (auto &m:memonhost) {
-            memory_report << "Node : " << m.first<<" : ";
+            memory_report << "\tNode : " << m.first<<" : ";
             append_memory_stats("VM", m.second.vm);
             memory_report << "; ";
             append_memory_stats("RSS", m.second.rss);
+            memory_report <<" \n";
+            namehosts.push_back(m.first);
+            memhosts.push_back(m.second);
+        }
+        return std::make_tuple(memory_report.str(), namehosts, memhosts);
+    }
+
+    std::string MPIReportNodeSystemMem(MPI_Comm &comm,
+        const std::string &function, 
+        const std::string &line_num
+        )
+    {
+        auto [report, nodes, mem] = MPIGetNodeSystemMem(comm, function, line_num);
+        return report;
+    }
+
+    std::tuple<std::string, std::vector<std::string>, std::vector<sys_memory_stats>> MPIGetNodeSystemMem(
+        MPI_Comm &comm, 
+        const std::string &function, 
+        const std::string &line_num
+    )
+    {
+        // parse comm to find unique hosts
+        int commsize, rank;
+        MPI_Comm_size(comm, &commsize);
+        MPI_Comm_rank(comm, &rank);
+        auto hostname = _gethostname();
+        int size = hostname.size()+1, maxsize = 0;
+        MPI_Allreduce(&size, &maxsize, 1, MPI_INTEGER, MPI_MAX, comm);
+        std::vector<char> allhostnames(maxsize*commsize);
+        for (auto i=size;i<maxsize;i++) hostname+=" ";
+        MPI_Gather(hostname.c_str(), maxsize, MPI_CHAR, allhostnames.data(), maxsize, MPI_CHAR, 0, comm);
+        std::unordered_set<std::string> hostnames;
+        for (auto i=0;i<commsize;i++) 
+        {
+            std::string s;
+            for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
+            hostnames.insert(s);
+        }
+        // get gather memory usage for all mpi ranks and sum them
+        auto mem = get_system_memory();
+        std::vector<sys_memory_stats> allmems(commsize);
+        MPI_Gather(&mem, sizeof(sys_memory_stats), MPI_BYTE, allmems.data(), sizeof(sys_memory_stats), MPI_BYTE, 0, comm);
+        std::map<std::string, sys_memory_stats> memonhost;
+        for (auto i=0;i<commsize;i++) 
+        {
+            std::string s;
+            for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
+            memonhost.insert_or_assign(s,allmems[i]);
+        }
+        // now construct memory report
+        std::ostringstream memory_report;
+        std::vector<std::string> namehosts;
+        std::vector<sys_memory_stats> memhosts;
+        auto append_memory_stats = [&memory_report](const char *name, const size_t &stat) {
+            memory_report << name << ": " << memory_amount(stat);
+        };
+        memory_report << "Node system memory report @ " << function << " L"<<line_num <<" :\n";
+        for (auto &m:memonhost) 
+        {
+            memory_report << "\tNode : " << m.first<<" : ";
+            append_memory_stats("Total ", m.second.total);memory_report << "; ";
+            append_memory_stats("Used  ", m.second.used);memory_report << "; ";
+            append_memory_stats("Free  ", m.second.free);memory_report << "; ";
+            append_memory_stats("Shared", m.second.shared);memory_report << "; ";
+            append_memory_stats("Cache ", m.second.cache);memory_report << "; ";
+            append_memory_stats("Avail ", m.second.avail);memory_report << "; ";
             memory_report <<" \n";
             namehosts.push_back(m.first);
             memhosts.push_back(m.second);

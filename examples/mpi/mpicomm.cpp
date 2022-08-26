@@ -644,6 +644,8 @@ int main(int argc, char **argv) {
     std::time_t start_time = std::chrono::system_clock::to_time_t(start);
     Rank0LocalLoggerWithTime()<<"Starting job "<<std::endl;
     Rank0ReportMem();
+    MPILog0NodeMemUsage(comm);
+    MPILog0NodeSystemMem(comm);
     if (argc >= 2) opt.maxgb = atof(argv[1]);
     if (argc == 3) opt.Niter = atof(argv[2]);
     opt.othertask = NProcs/2 + 1;

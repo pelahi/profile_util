@@ -248,6 +248,10 @@ namespace profiling_util {
     std::tuple<std::string, memory_usage> GetMemUsage(const memory_usage &prior_mem_use, const std::string &f, const std::string &l);
     /// Get memory usage on all hosts 
     #ifdef _MPI
+    std::string MPIReportNodeMemUsage(MPI_Comm &comm, 
+    const std::string &function, 
+    const std::string &line_num
+    );
     std::tuple<std::string, std::vector<std::string>, std::vector<memory_usage>> MPIGetNodeMemUsage(MPI_Comm &comm, 
     const std::string &function, 
     const std::string &line_num
@@ -266,6 +270,10 @@ namespace profiling_util {
     /// like ReportSystemMem but also returns the system memory
     std::tuple<std::string, sys_memory_stats> GetSystemMem(const std::string &f, const std::string &l);
     std::tuple<std::string, sys_memory_stats> GetSystemMem(const sys_memory_stats &prior_mem_use, const std::string &f, const std::string &l);
+    #ifdef _MPI
+    std::string MPIReportNodeSystemMem(MPI_Comm &comm, const std::string &function, const std::string &line_num);
+    std::tuple<std::string, std::vector<std::string>, std::vector<sys_memory_stats>> MPIGetNodeSystemMem(MPI_Comm &comm, const std::string &function, const std::string &line_num);
+    #endif
 
     /// Timer class. 
     /// In code create an instance of time and then just a mantter of 
@@ -326,18 +334,20 @@ namespace profiling_util {
     /// and current call
     std::string ReportTimeTaken(const Timer &t, const std::string &f, const std::string &l);
     float GetTimeTaken(const Timer &t, const std::string &f, const std::string &l);
+
 }
 
+/// \def utility definitions 
+//@{
+#define _where_calling_from "@"<<__func__<<" L"<<std::to_string(__LINE__)
 /// MPI helper routines
 //{@
 #ifdef _MPI 
 //#define MPIOnly0 if (ThisTask == 0)
-std::string MPICallingRank(int task);
+#define _MPI_calling_rank(task) "["<<std::setw(5) << std::setfill('0')<<task<<"] "<<std::setw(0)
+
 #endif
-//@}
-/// \def utility definitions 
-//@{
-#define _where_calling_from "@"<<__func__<<" L"<<std::to_string(__LINE__)
+    //@}
 //@}
 /// \defgroup LogAffinity
 /// Log thread affinity and parallelism either to std or an ostream
@@ -350,7 +360,7 @@ std::string MPICallingRank(int task);
 #define MPILog0ThreadAffinity() if(ThisTask == 0) printf("%s \n", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
 #define MPILogger0ThreadAffinity(logger) if(ThisTask == 0)logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
 #define MPILogThreadAffinity(comm) printf("%s \n", profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm).c_str());
-#define MPILoggerThreadAffinity(logger,comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
+#define MPILoggerThreadAffinity(logger, comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
 #define MPILog0ParallelAPI() if(ThisTask==0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
 #define MPILog0Binding() {auto s =profiling_util::ReportBinding(); if (ThisTask == 0) std::cout<<_where_calling_from<<"\n"<<s<<std::endl;}
 #endif
@@ -361,15 +371,22 @@ std::string MPICallingRank(int task);
 //@{
 #define LogMemUsage() std::cout<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerMemUsage(logger) logger<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+
 #ifdef _MPI
-#define MPILogMemUsage() std::cout<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerMemUsage(logger) logger<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogMemUsage() std::cout<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerMemUsage(logger) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILog0NodeMemUsage(comm) {auto report=profiling_util::MPIReportNodeMemUsage(comm, __func__, std::to_string(__LINE__));if (ThisTask == 0) {std::cout<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}}
+#define MPILogger0NodeMemUsage(logger, comm) {auto report=profiling_util::MPIReportNodeMemUsage(comm, __func__, std::to_string(__LINE__));if (ThisTask == 0) logger<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}
 #endif
+
 #define LogSystemMem() std::cout<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerSystemMem(logger) logger<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+
 #ifdef _MPI
-#define MPILogSystemMem() std::cout<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerSystemMem(logger) logger<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogSystemMem() std::cout<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerSystemMem(logger) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILog0NodeSystemMem(comm) {auto report=profiling_util::MPIReportNodeSystemMem(comm, __func__, std::to_string(__LINE__));if (ThisTask == 0){std::cout<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}}
+#define MPILogger0NodeSystemMem(logger, comm) {auto report = profiling_util::MPIReportNodeSystemMem(__func__, std::to_string(__LINE__));if (ThisTask == 0) {logger<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}}
 #endif
 //@}
 
@@ -380,8 +397,8 @@ std::string MPICallingRank(int task);
 #define LogTimeTaken(timer) std::cout<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerTimeTaken(logger,timer) logger<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
-#define MPILogTimeTaken(timer) std::cout<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerTimeTaken(logger,timer) logger<<profiling_util::MPICallingRank(ThisTask)<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogTimeTaken(timer) std::cout<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerTimeTaken(logger,timer) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #endif 
 #define NewTimer() profiling_util::Timer(__func__, std::to_string(__LINE__));
 //@}
@@ -411,7 +428,7 @@ extern "C" {
     //@{
     #define log_mem_usage() printf("%s \n", profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__)).c_str());
     #ifdef _MPI
-    #define mpi_log_mem_usage() printf("%s %s \n", profiling_util::MPICallingRank(ThisTask).c_str(), profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__)).c_str());
+    #define mpi_log_mem_usage() printf("%s %s \n", _MPI_calling_rank.c_str(), profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__)).c_str());
     #endif
     //@}
 
