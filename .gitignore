@@ -2,5 +2,5 @@ lib/*.so
 obj/*.o
 
 examples/openmp/bin/openmp*
-examples/openmp/bin/mpi*
+examples/mpi/bin/mpi*
 
