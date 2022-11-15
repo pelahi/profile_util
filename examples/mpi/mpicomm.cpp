@@ -195,6 +195,7 @@ void MPITestBcast(Options &opt)
     std::string mpifunc;
     auto[numcoms, mpi_comms, mpi_comms_name, ThisLocalTask, NProcsLocal, NLocalComms] = MPIAllocateComms();
     std::vector<double> data;
+    auto comm_all = MPI_COMM_WORLD;
     
     double * p1 = nullptr, *p2 = nullptr;
     auto  sizeofsends = MPISetSize(opt.maxgb);
@@ -208,6 +209,8 @@ void MPITestBcast(Options &opt)
         LogMPIAllComm();
         data.resize(sizeofsends[i]);
         Rank0ReportMem();
+        MPILog0NodeMemUsage(comm_all);
+        MPILog0NodeSystemMem(comm_all);
         for (auto &d:data) d = pow(2.0,ThisTask);
         p1 = data.data();
         auto time1 = NewTimer();
@@ -240,6 +243,7 @@ void MPITestBcast(Options &opt)
 void MPITestSendRecvSingleRank(Options &opt) 
 {
     MPI_Status status;
+    auto comm_all = MPI_COMM_WORLD;
     std::string mpifunc;
     std::vector<double> senddata, receivedata;
     
@@ -258,6 +262,8 @@ void MPITestSendRecvSingleRank(Options &opt)
         senddata.resize(sizeofsends[i]);
         receivedata.resize(sizeofsends[i]);
         Rank0ReportMem();
+        MPILog0NodeMemUsage(comm_all);
+        MPILog0NodeSystemMem(comm_all);
         for (auto &d:senddata) d = pow(2.0,ThisTask);
         p1 = senddata.data();
         p2 = receivedata.data();
@@ -300,6 +306,7 @@ void MPITestSendRecvSingleRank(Options &opt)
 void MPITestSendRecv(Options &opt) 
 {
     MPI_Status status;
+    auto comm_all = MPI_COMM_WORLD;
     std::string mpifunc;
     auto[numcoms, mpi_comms, mpi_comms_name, ThisLocalTask, NProcsLocal, NLocalComms] = MPIAllocateComms();
     std::vector<double> senddata, receivedata;
@@ -322,6 +329,8 @@ void MPITestSendRecv(Options &opt)
         senddata.resize(sizeofsends[i]);
         receivedata.resize(sizeofsends[i]);
         Rank0ReportMem();
+        MPILog0NodeMemUsage(comm_all);
+        MPILog0NodeSystemMem(comm_all);
         for (auto &d:senddata) d = pow(2.0,ThisTask);
         p1 = senddata.data();
         p2 = receivedata.data();
@@ -362,6 +371,8 @@ void MPITestSendRecv(Options &opt)
                     }
                 }
                 Rank0ReportMem();
+                MPILog0NodeMemUsage(comm_all);
+                MPILog0NodeSystemMem(comm_all);
                 MPI_Waitall(recvreqs.size(), recvreqs.data(), MPI_STATUSES_IGNORE);
                 LocalLoggerWithTime()<<" Received ireceives "<<std::endl;
                 auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
@@ -395,6 +406,7 @@ void MPITestAllScatter(Options &opt)
 void MPITestAllReduce(Options &opt) 
 {
     MPI_Status status;
+    auto comm_all = MPI_COMM_WORLD;
     std::string mpifunc;
     auto[numcoms, mpi_comms, mpi_comms_name, ThisLocalTask, NProcsLocal, NLocalComms] = MPIAllocateComms();
     std::vector<double> data, allreducesum;
@@ -424,6 +436,8 @@ void MPITestAllReduce(Options &opt)
         data.resize(sizeofsends[i]);
         allreducesum.resize(sizeofsends[i]);
         Rank0ReportMem();
+        MPILog0NodeMemUsage(comm_all);
+        MPILog0NodeSystemMem(comm_all);
         for (auto &d:data) d = pow(2.0,ThisTask);
         p1 = data.data();
         p2 = allreducesum.data();
@@ -446,6 +460,8 @@ void MPITestAllReduce(Options &opt)
                 times.insert(times.end(), times_tmp.begin(), times_tmp.end());
             }
             Rank0ReportMem();
+            MPILog0NodeMemUsage(comm_all);
+            MPILog0NodeSystemMem(comm_all);
             sleep(2);
             MPI_Barrier(MPI_COMM_WORLD);
             MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
@@ -473,6 +489,7 @@ void MPITestLongDelay(Options &opt)
     
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Status status;
+    auto comm_all = MPI_COMM_WORLD;
     std::string mpifunc;
     unsigned long size = opt.msize;
     std::vector<double> data(size);
@@ -531,6 +548,7 @@ void MPITestCorrectSendRecv(Options &opt)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Status status;
+    auto comm_all = MPI_COMM_WORLD;
     std::string mpifunc;
     unsigned long size = 5;
     std::vector<double> data(size);
@@ -601,6 +619,7 @@ void MPITestCorrectSendRecv(Options &opt)
 
 void MPIRunTests(Options &opt)
 {
+    auto comm_all = MPI_COMM_WORLD;
     if (opt.ilongdelay) {
         MPITestLongDelay(opt);
         return;
@@ -614,19 +633,23 @@ void MPIRunTests(Options &opt)
     if (opt.iscatter) MPITestAllScatter(opt);
     for (auto i=0;i<3;i++) {
     if (opt.ireduce) MPITestAllReduce(opt);
-    sleep(5);
-    Rank0ReportMem();
-    sleep(5);
-    MPI_Barrier(MPI_COMM_WORLD);
+        sleep(5);
+        Rank0ReportMem();
+        MPILog0NodeMemUsage(comm_all);
+        MPILog0NodeSystemMem(comm_all);
+        sleep(5);
+        MPI_Barrier(MPI_COMM_WORLD);
     }
     if (opt.ibcast) MPITestBcast(opt);
 
     for (auto i=0;i<2;i++) {
-    if (opt.isendrecv) MPITestSendRecv(opt);
-    sleep(5);
-    Rank0ReportMem();
-    sleep(5);
-    MPI_Barrier(MPI_COMM_WORLD);
+        if (opt.isendrecv) MPITestSendRecv(opt);
+        sleep(5);
+        Rank0ReportMem();
+        MPILog0NodeMemUsage(comm_all);
+        MPILog0NodeSystemMem(comm_all);
+        sleep(5);
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 }
 
