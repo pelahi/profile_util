@@ -57,6 +57,7 @@ struct Options
     double deltap = 0.1;
     bool iverbose = false;
     bool icompute = true;
+    bool ineighbouring = true;
 };
 
 struct PointData
@@ -191,7 +192,15 @@ std::tuple<unsigned long long,
     unsigned seed = 4320;
     seed *= (ThisTask+1);
     std::default_random_engine generator(seed);
-    std::uniform_real_distribution<double> pos(0.0,opt.p);
+    //std::uniform_real_distribution<double> pos(0.0,opt.p);
+    auto startval = 0.0, endval = opt.p;
+    if (opt.ineighbouring)
+    {
+    	auto slabwidth = opt.p/static_cast<double>(NProcs);
+    	startval = (ThisTask - 2.0) * slabwidth;
+    	endval = (ThisTask + 2.0) * slabwidth;
+    }
+    std::uniform_real_distribution<double> pos(startval,endval);
     double x[3];
 #if defined(USEOPENMP)
     #pragma omp for schedule(static)
@@ -199,6 +208,8 @@ std::tuple<unsigned long long,
     for (auto i = 0; i < Nlocal; i++) {
         for (auto j = 0; j < 3; j++) {
             data[i].x[j] = pos(generator);
+            if (data[i].x[j] > opt.p) data[i].x[j] -= opt.p;
+            if (data[i].x[j] < 0) data[i].x[j] += opt.p;
         }
         data[i].id = i;
         data[i].type = ThisTask;
