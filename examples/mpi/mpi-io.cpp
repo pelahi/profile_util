@@ -28,8 +28,9 @@ std::string whenbuff;
 #define LogMPIAllComm() Rank0LocalLoggerWithTime()<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
 #define Rank0ReportMem() if (ThisTask==0) {Where();When();std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogSystemMem();}
 
-void WriteCollective(MPI_Comm &comm) {
-    Rank0LocalLoggerWithTime()<<" Starting collective binary write "<<std::endl;    
+void WriteCollective(MPI_Comm &comm, std::string &fnamebase) {
+    std::string fname=fnamebase+std::string(".collective.example.txt");
+    Rank0LocalLoggerWithTime()<<" Starting collective binary write to "<<fname<<std::endl;    
     MPI_File file;
     MPI_Offset offset;
     MPI_Status status;
@@ -37,7 +38,7 @@ void WriteCollective(MPI_Comm &comm) {
     for (auto i=0;i<buffer.size();i++) buffer[i] = ThisTask*NProcs + i;
 
     // Open the file in parallel
-    MPI_File_open(comm, "mpi-io.collective.example.txt", 
+    MPI_File_open(comm, fname.c_str(), 
         MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, 
         &file);
     // Calculate the offset based on the rank
@@ -49,8 +50,9 @@ void WriteCollective(MPI_Comm &comm) {
     Rank0LocalLoggerWithTime()<<" Finished collective binary write "<<std::endl;    
 }
 
-void WriteNonCollective(MPI_Comm &comm) {
-    Rank0LocalLoggerWithTime()<<" Starting non-collective binary write "<<std::endl;    
+void WriteNonCollective(MPI_Comm &comm, std::string &fnamebase) {
+    std::string fname=fnamebase+std::string(".non-collective.example.txt");
+    Rank0LocalLoggerWithTime()<<" Starting non-collective binary write to "<<fname<<std::endl;
     MPI_File file;
     MPI_Offset offset;
     MPI_Status status;
@@ -58,7 +60,7 @@ void WriteNonCollective(MPI_Comm &comm) {
     for (auto i=0;i<buffer.size();i++) buffer[i] = ThisTask*NProcs + i;
 
     // Open the file in parallel
-    MPI_File_open(comm, "mpi-io.non-collective.example.txt", 
+    MPI_File_open(comm, fname.c_str(), 
         MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, 
         &file);
     // Calculate the offset based on the rank
@@ -78,6 +80,8 @@ int main(int argc, char *argv[]) {
     auto comm = MPI_COMM_WORLD;
     MPI_Comm_rank(comm, &ThisTask);
     MPI_Comm_size(comm, &NProcs);
+    std::string fname = "mpi-io";
+    if (argc == 2) fname = std::string(argv[1]);
 
     // init logger time
     logtime = std::chrono::system_clock::now();
@@ -92,8 +96,8 @@ int main(int argc, char *argv[]) {
     MPILog0Binding();
 
     // trial some writes 
-    WriteCollective(comm);
-    WriteNonCollective(comm);
+    WriteCollective(comm,fname);
+    WriteNonCollective(comm,fname);
 
     // finish job
     Rank0LocalLoggerWithTime()<<"Ending job "<<std::endl;
