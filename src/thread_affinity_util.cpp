@@ -114,36 +114,57 @@ namespace profiling_util {
 #endif
         s += "\n";
 #endif
-#ifdef _HIP 
+// #ifdef _HIP 
+//         int nDevices = 0;
+//         hipErrorCheck(hipGetDeviceCount(&nDevices));
+//         s += "Running with HIP and found " + std::to_string(nDevices) + "\n";
+//         if (nDevices > 0) {
+//         for (auto i=0;i<nDevices;i++)
+//         {
+// 			char busid[64];
+//             hipDeviceProp_t prop;
+//             hipErrorCheck(hipSetDevice(i));
+//             hipErrorCheck(hipGetDeviceProperties(&prop, i));
+// 			// Get the PCIBusId for each GPU and use it to query for UUID
+// 			hipErrorCheck(hipDeviceGetPCIBusId(busid, 64, i));
+//             s += "HIP_Device_Name=" + std::string(prop.name);
+//             s += " Bus_ID =" + std::string(busid);
+//             s += " Compute_Units=" + std::to_string(prop.multiProcessorCount);
+//             s += " Max_Work_Group_Size=" + std::to_string(prop.warpSize);
+//             s += " Local_Mem_Size=" + std::to_string(prop.sharedMemPerBlock);
+//             s += " Global_Mem_Size=" + std::to_string(prop.totalGlobalMem);
+//             s += "\n";
+//         }
+//         hipErrorCheck(hipSetDevice(0));
+//         }
+// #endif 
+// #ifdef _CUDA
+//         int nDevices = 0;
+//         cudaErrorCheck(cudaGetDeviceCount(&nDevices));
+//         s += "Running with CUDA and found " + std::to_string(nDevices) + "\n";
+//         if (nDevices>0) {
+//         for (auto i=0;i<nDevices;i++)
+//         {
+// 			char busid[64];
+//             cudaDeviceProp_t prop;
+//             cudaErrorCheck(cudaSetDevice(i));
+//             cudaErrorCheck(cudaGetDeviceProperties(&prop, i));
+// 			cudaErrorCheck(cudaDeviceGetPCIBusId(busid, 64, i));
+//             s += "CUDA_Device_Name=" + std::to_string(prop.name);
+//             s += " Bus_ID=" + std::to_string(busid);
+//             s += " Compute_Units=" + std::to_string(prop.multiProcessorCount);
+//             s += " Max_Work_Group_Size=" + std::to_string(prop.warpSize);
+//             s += " Local_Mem_Size=" + std::to_string(prop.sharedMemPerBlock);
+//             s += " Global_Mem_Size=" + std::to_string(prop.totalGlobalMem);
+//             s += "\n";
+//         }
+//         cudaErrorCheck(cudaSetDevice(0));
+//         }
+// #endif 
+#ifdef _GPU 
         int nDevices = 0;
-        hipGetDeviceCount(&nDevices);
-        s += "Running with HIP and found " + std::to_string(nDevices) + "\n";
-        for (auto i=0;i<nDevices;i++)
-        {
-            hipDeviceProp_t prop;
-            hipGetDeviceProperties(&prop, i);
-            s += "HIP Device" + string(prop.name);
-            s += " Compute Units " + to_string(prop.multiProcessorCount);
-            s += " Max Work Group Size " + to_string(prop.warpSize);
-            s += " Local Mem Size " + to_string(prop.sharedMemPerBlock);
-            s += " Global Mem Size " + to_string(prop.totalGlobalMem);
-            s += "\n";
-        }
-#endif 
-#ifdef _CUDA
-        int nDevices = 0;
-        cudaGetDeviceCount(&nDevices);
-        s += "Running with CUDA and found " + std::to_string(nDevices) + "\n";
-        for (auto i=0;i<nDevices;i++)
-        {
-            cudaGetDeviceProperties(&prop, i);
-            s += "Device" + string(prop.name);
-            s += " Compute Units " + std::to_string(prop.multiProcessorCount);
-            s += " Max Work Group Size " + std::to_string(prop.warpSize);
-            s += " Local Mem Size " + std::to_string(prop.sharedMemPerBlock);
-            s += " Global Mem Size " + std::to_string(prop.totalGlobalMem);
-            s += "\n";
-        }
+        pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
+        s += "Running with " +std::string(_GPU_API) + " and found " + std::to_string(nDevices) + "\n";
 #endif 
         return s;
     }
@@ -190,6 +211,38 @@ namespace profiling_util {
                 binding_report += result;
             }
         }
+#ifdef _GPU
+        int nDevices = 0;
+        pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
+        if (nDevices > 0) {
+            // binding_report += std::string(_GPU_API) + " API ";
+            // binding_report += std::to_string(nDevices) + " devices, device info : \n";
+            char busid[64];
+            for (auto i=0;i<nDevices;i++)
+            {
+                pu_gpuDeviceProp_t prop;
+                std::string s;
+                // pu_gpuErrorCheck(pu_gpuSetDevice(i));
+                pu_gpuErrorCheck(pu_gpuGetDeviceProperties(&prop, i));
+                // Get the PCIBusId for each GPU and use it to query for UUID
+                pu_gpuErrorCheck(pu_gpuDeviceGetPCIBusId(busid, 64, i));
+                s = "\t On node " + std::string(hnbuf) + " : ";
+#ifdef _MPI
+                s += "MPI Rank " + std::to_string(ThisTask) + " : ";
+#endif
+                s += "GPU device " + std::to_string(i);
+                s += " Device_Name=" + std::string(prop.name);
+                s += " Bus_ID=" + std::string(busid);
+                s += " Compute_Units=" + std::to_string(prop.multiProcessorCount);
+                s += " Max_Work_Group_Size=" + std::to_string(prop.warpSize);
+                s += " Local_Mem_Size=" + std::to_string(prop.sharedMemPerBlock);
+                s += " Global_Mem_Size=" + std::to_string(prop.totalGlobalMem);
+                s += "\n";
+                binding_report +=s;
+            }
+            // pu_gpuErrorCheck(pu_gpuSetDevice(0));
+        }
+#endif
 #ifdef _MPI
         // gather all strings to for outputing info 
         std::vector<int> recvcounts(NProcs);

@@ -10,11 +10,13 @@ if [ ! -z $2]; then
 fi
 
 devicetype=hip
+OMPFLAGS="-fopenmp --offload-arch=gfx90a -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx90a"
+GPUFLAGS="-D_HIP -D__HIP_PLATFORM_AMD__"
 # first is serial
 buildtypes=("HIP Serial" "HIP OpenMP" "HIP MPI" "HIP MPI+OpenMP")
 buildnames=("_hip" "_hip_omp" "_hip_mpi" "_hip_mpi_omp")
 compilers=(${CXX} ${CXX} ${MPICXX} ${MPICXX})
-extraflags=("" "${OMPFLAGS}" "-D_MPI" "-D_MPI ${OMPFLAGS}")
+extraflags=("${GPUFLAGS}" "${GPUFLAGS} ${OMPFLAGS}" "${GPUFLAGS} -D_MPI" "${GPUFLAGS} -D_MPI ${OMPFLAGS}")
 
 
 for ((i=0;i<4;i++)) 

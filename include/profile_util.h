@@ -27,11 +27,15 @@
 #include <mpi.h>
 #endif 
 
-#ifdef USEHIP
+#ifdef _HIP
+#define _GPU 
+#define _GPU_API "HIP"
 #include <hip/hip_runtime.h>
 #endif
 
-#ifdef USECUDA
+#ifdef _CUDA
+#define _GPU
+#define _GPU_API "CUDA"
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #endif
@@ -41,7 +45,7 @@
 #endif
 /// \defgroup GPU related define statements 
 //@{
-#ifdef USEHIP
+#ifdef _HIP
 #define pu_gpuMalloc hipMalloc
 #define pu_gpuFree hipFree
 #define pu_gpuMemcpy hipMemcpy
@@ -53,8 +57,20 @@
 #define pu_gpuEventRecord hipEventRecord
 #define pu_gpuEventSynchronize  hipEventSynchronize
 #define pu_gpuEventElapsedTime hipEventElapsedTime
+#define pu_gpuGetErrorString hipGetErrorString
+#define pu_gpuError_t hipError_t
+#define pu_gpuErr hipErr
+#define pu_gpuSuccess hipSuccess
+#define pu_gpuGetDeviceCount hipGetDeviceCount
+#define pu_gpuDeviceProp_t hipDeviceProp_t
+#define pu_gpuSetDevice hipSetDevice
+#define pu_gpuGetDeviceProperties hipGetDeviceProperties
+#define pu_gpuDeviceGetPCIBusId hipDeviceGetPCIBusId
 
-#else 
+
+#endif
+
+#ifdef _CUDA
 
 #define pu_gpuMalloc cudaMalloc
 #define pu_gpuFree cudaFree
@@ -67,6 +83,37 @@
 #define pu_gpuEventRecord cudaEventRecord
 #define pu_gpuEventSynchronize  cudaEventSynchronize
 #define pu_gpuEventElapsedTime cudaEventElapsedTime
+#define pu_gpuError_t cudaError_t
+#define pu_gpuErr cudaErr
+#define pu_gpuSuccess cudaSuccess
+#define pu_gpuGetDeviceCount cudaGetDeviceCount
+#define pu_gpuDeviceProp_t cudaDeviceProp_t
+#define pu_gpuSetDevice cudaSetDevice
+#define pu_gpuGetDeviceProperties cudaGetDeviceProperties
+#define pu_gpuDeviceGetPCIBusId cudaDeviceGetPCIBusId
+
+// // macro for checking errors in HIP API calls
+// #define cudaErrorCheck(call)                                                                 \
+// do{                                                                                         \
+//     cudaError_t cudaErr = call;                                                               \
+//     if(cudaSuccess != cudaErr){                                                               \
+//         std::cerr<<"CUDA Error : "<<cudaGetErrorString(cudaErr)<<" - "<<__FILE__<<":"<<__LINE__<<std::endl; \
+//         exit(0);                                                                            \
+//     }                                                                                       \
+// }while(0)
+
+#endif
+
+#ifdef _GPU 
+// macro for checking errors in HIP API calls
+#define pu_gpuErrorCheck(call)                                                                 \
+do{                                                                                         \
+    pu_gpuError_t pu_gpuErr = call;                                                               \
+    if(pu_gpuSuccess != pu_gpuErr){                                                               \
+        std::cerr<<_GPU_API<<" error : "<<pu_gpuGetErrorString(pu_gpuErr)<<" - "<<__FILE__<<":"<<__LINE__<<std::endl; \
+        exit(0);                                                                            \
+    }                                                                                       \
+}while(0)
 
 #endif
 //@}

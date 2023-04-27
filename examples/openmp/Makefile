@@ -1,10 +1,10 @@
 .PHONY: all clean
 
 F90=gfortran 
-OMPFLAGS=-fopenmp -DUSEOPENMP
+OMPFLAGS=-fopenmp -DUSEOPENMP --offload-arch=gfx90a -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx90a
 FOMPFLAGS=-fopenmp 
 LIBDIR=$(shell pwd)/../../lib/
-LIB=-lprofile_util_omp
+LIB=-lprofile_util_hip_omp
 INCDIR=$(shell pwd)/../../include/
 FLAGS=-L$(LIBDIR) -I$(INCDIR) -Wl,-rpath=$(LIBDIR)
 
