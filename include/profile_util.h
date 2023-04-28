@@ -47,6 +47,7 @@
 //@{
 #ifdef _HIP
 #define pu_gpuMalloc hipMalloc
+#define pu_gpuHostMalloc hipHostMalloc
 #define pu_gpuFree hipFree
 #define pu_gpuMemcpy hipMemcpy
 #define pu_gpuMemcpyHostToDevice hipMemcpyHostToDevice
@@ -73,6 +74,7 @@
 #ifdef _CUDA
 
 #define pu_gpuMalloc cudaMalloc
+#define pu_gpuHostMalloc cudaHostMalloc
 #define pu_gpuFree cudaFree
 #define pu_gpuMemcpy cudaMemcpy
 #define pu_gpuMemcpyHostToDevice cudaMemcpyHostToDevice
