@@ -30,12 +30,14 @@
 #ifdef _HIP
 #define _GPU 
 #define _GPU_API "HIP"
+#define _GPU_TO_SECONDS 1.0/1000.0
 #include <hip/hip_runtime.h>
 #endif
 
 #ifdef _CUDA
 #define _GPU
 #define _GPU_API "CUDA"
+#define _GPU_TO_SECONDS 1.0/1000.0
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #endif
@@ -58,6 +60,7 @@
 #define pu_gpuEventRecord hipEventRecord
 #define pu_gpuEventSynchronize  hipEventSynchronize
 #define pu_gpuEventElapsedTime hipEventElapsedTime
+#define pu_gpuDeviceSynchronize hipDeviceSynchronize
 #define pu_gpuGetErrorString hipGetErrorString
 #define pu_gpuError_t hipError_t
 #define pu_gpuErr hipErr
@@ -85,6 +88,7 @@
 #define pu_gpuEventRecord cudaEventRecord
 #define pu_gpuEventSynchronize  cudaEventSynchronize
 #define pu_gpuEventElapsedTime cudaEventElapsedTime
+#define pu_gpuDeviceSynchronize cudaDeviceSynchronize
 #define pu_gpuError_t cudaError_t
 #define pu_gpuErr cudaErr
 #define pu_gpuSuccess cudaSuccess
