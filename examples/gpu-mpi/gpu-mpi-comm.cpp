@@ -481,6 +481,7 @@ void MPITestGPUCopy(Options &opt){
                 pu_gpuErrorCheck(pu_gpuEventRecord(gpuEventStart));
                 pu_gpuErrorCheck(pu_gpuMemcpy(gpu_p1[idev], senddata.data(), nbytes, pu_gpuMemcpyHostToDevice));
                 pu_gpuErrorCheck(pu_gpuEventRecord(gpuEventStop));
+                pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
                 pu_gpuErrorCheck(pu_gpuEventElapsedTime(&timetaken, gpuEventStart, gpuEventStop));
                 memcopytimes.push_back(timetaken*_GPU_TO_SECONDS);
                 memcopybandwidth.push_back(nbytes/1024.0/1024.0/1024.0/(timetaken*_GPU_TO_SECONDS));
@@ -561,11 +562,12 @@ void MPITestGPUSendRecv(Options &opt)
                 // need to make pair of sending tasks and receiving tasks
                 for (auto itask=0;itask<NProcs;itask++) {
                     if (itask == opt.roottask) continue;
+                    if (!(ThisTask==opt.roottask or ThisTask==itask)) continue;
                     int tag = 100;
                     for (auto iter=0;iter<opt.Niter;iter++) {
                         pu_gpuErrorCheck(pu_gpuEventRecord(gpuEventStart));
                         if (ThisTask==opt.roottask) MPI_Send(p1, sizeofsends[i], MPI_DOUBLE, itask, tag, mpi_comms[j]);
-                        else MPI_Recv(p2, sizeofsends[i], MPI_DOUBLE, opt.roottask, tag, mpi_comms[j], &status);
+                        else if (ThisTask==itask) MPI_Recv(p2, sizeofsends[i], MPI_DOUBLE, opt.roottask, tag, mpi_comms[j], &status);
                         pu_gpuErrorCheck(pu_gpuEventRecord(gpuEventStop));
                         pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
                         pu_gpuErrorCheck(pu_gpuEventElapsedTime(&timetaken, gpuEventStart, gpuEventStop));
