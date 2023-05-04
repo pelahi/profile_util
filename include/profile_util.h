@@ -77,7 +77,7 @@
 #ifdef _CUDA
 
 #define pu_gpuMalloc cudaMalloc
-#define pu_gpuHostMalloc cudaHostMalloc
+#define pu_gpuHostMalloc cudaMallocHost
 #define pu_gpuFree cudaFree
 #define pu_gpuMemcpy cudaMemcpy
 #define pu_gpuMemcpyHostToDevice cudaMemcpyHostToDevice
