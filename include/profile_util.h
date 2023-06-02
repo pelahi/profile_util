@@ -58,7 +58,7 @@
 #define pu_gpuEventCreate hipEventCreate
 #define pu_gpuEventDestroy hipEventDestroy
 #define pu_gpuEventRecord hipEventRecord
-#define pu_gpuEventSynchronize  hipEventSynchronize
+#define pu_gpuEventSynchronize hipEventSynchronize
 #define pu_gpuEventElapsedTime hipEventElapsedTime
 #define pu_gpuDeviceSynchronize hipDeviceSynchronize
 #define pu_gpuGetErrorString hipGetErrorString
@@ -70,7 +70,8 @@
 #define pu_gpuSetDevice hipSetDevice
 #define pu_gpuGetDeviceProperties hipGetDeviceProperties
 #define pu_gpuDeviceGetPCIBusId hipDeviceGetPCIBusId
-
+#define pu_gpuDeviceReset hipDeviceReset
+#define pu_gpuLaunchKernel(...) hipLaunchKernelGGL(__VA_ARGS__)
 
 #endif
 
@@ -86,7 +87,7 @@
 #define pu_gpuEventCreate cudaEventCreate
 #define pu_gpuEventDestroy cudaEventDestroy
 #define pu_gpuEventRecord cudaEventRecord
-#define pu_gpuEventSynchronize  cudaEventSynchronize
+#define pu_gpuEventSynchronize cudaEventSynchronize
 #define pu_gpuEventElapsedTime cudaEventElapsedTime
 #define pu_gpuDeviceSynchronize cudaDeviceSynchronize
 #define pu_gpuError_t cudaError_t
@@ -97,16 +98,9 @@
 #define pu_gpuSetDevice cudaSetDevice
 #define pu_gpuGetDeviceProperties cudaGetDeviceProperties
 #define pu_gpuDeviceGetPCIBusId cudaDeviceGetPCIBusId
+#define pu_gpuDeviceReset cudaDeviceReset
+#define pu_gpuLaunchKernel cudaLaunchKernel
 
-// // macro for checking errors in HIP API calls
-// #define cudaErrorCheck(call)                                                                 \
-// do{                                                                                         \
-//     cudaError_t cudaErr = call;                                                               \
-//     if(cudaSuccess != cudaErr){                                                               \
-//         std::cerr<<"CUDA Error : "<<cudaGetErrorString(cudaErr)<<" - "<<__FILE__<<":"<<__LINE__<<std::endl; \
-//         exit(0);                                                                            \
-//     }                                                                                       \
-// }while(0)
 
 #endif
 
@@ -376,6 +370,13 @@ namespace profiling_util {
         
 
         /*!
+         * Returns whether timer has timer on device and not just host
+         *
+         * @return boolean on whether timer on device [us]
+         */
+        inline
+        bool get_use_device() const {return use_device;}
+        /*!
          * Returns the number of milliseconds elapsed since the reference time
          * of the timer
          *
@@ -403,21 +404,19 @@ namespace profiling_util {
          *
          * @return The time elapsed since the creation of the timer, in [us]
          */
-#if defined(USEHIP) || defined(USECUDA)
+#if defined(_GPU)
         inline
         float get_on_device() const 
         {
+            if (!use_device) return 0;
             pu_gpuEvent_t t1_event;
-            pu_gpuEventCreate(&t1_event);
-            pu_gpuEventRecord(t1_event); 
-            pu_gpuEventSynchronize(t1_event);
+            pu_gpuErrorCheck(pu_gpuEventCreate(&t1_event));
+            pu_gpuErrorCheck(pu_gpuEventRecord(t1_event)); 
+            pu_gpuErrorCheck(pu_gpuEventSynchronize(t1_event));
             float telapsed;
-            pu_gpuEventElapsedTime(&telapsed,t0_event,t1_event);
-#ifdef USEHIP
-            telapsed *= 1000; // to convert to milliseconds 
-#else
-#endif
-            pu_gpuEventDestroy(t1_event);
+            pu_gpuErrorCheck(pu_gpuEventElapsedTime(&telapsed,t0_event,t1_event));
+            telapsed *= _GPU_TO_SECONDS; // to convert to seconds 
+            pu_gpuErrorCheck(pu_gpuEventDestroy(t1_event));
             return telapsed;
         }
 #endif
@@ -426,9 +425,11 @@ namespace profiling_util {
         {
             ref = new_ref;
             t0 = clock::now();
-#if defined(USEHIP) || defined(USECUDA)
-            pu_gpuEventRecord(t0_event); 
-            pu_gpuEventSynchronize(t0_event);
+#if defined(_GPU)
+            if (use_device) {
+                pu_gpuErrorCheck(pu_gpuEventRecord(t0_event)); 
+                pu_gpuErrorCheck(pu_gpuEventSynchronize(t0_event));
+            }
 #endif
         };
         std::string get_ref() const 
@@ -436,20 +437,23 @@ namespace profiling_util {
             return ref;
         };
 
-        Timer(const std::string &f, const std::string &l) {
+        Timer(const std::string &f, const std::string &l, bool _use_device=true) {
             ref="@"+f+" L"+l;
             t0 = clock::now();
             tref = t0;
-#if defined(USEHIP) || defined(USECUDA)
-            pu_gpuEventCreate(&t0_event);
-            pu_gpuEventRecord(t0_event); 
-            pu_gpuEventSynchronize(t0_event);
+            use_device = _use_device;
+#if defined(_GPU)
+            if (use_device) {
+                pu_gpuErrorCheck(pu_gpuEventCreate(&t0_event));
+                pu_gpuErrorCheck(pu_gpuEventRecord(t0_event)); 
+                pu_gpuErrorCheck(pu_gpuEventSynchronize(t0_event));
+            }
 #endif
         }
-#if defined(USEHIP) || defined(USECUDA)
+#if defined(_GPU)
         ~Timer()
         {
-            pu_gpuEventDestroy(t0_event);
+            if (use_device) pu_gpuErrorCheck(pu_gpuEventDestroy(t0_event));
         }
 #endif
 
@@ -457,7 +461,8 @@ namespace profiling_util {
         clock::time_point t0;
         clock::time_point tref;
         std::string ref;
-#if defined(USEHIP) || defined(USECUDA)
+        bool use_device = true;
+#if defined(_GPU)
         pu_gpuEvent_t t0_event;
 #endif
     };
@@ -467,7 +472,7 @@ namespace profiling_util {
     std::string ReportTimeTaken(const Timer &t, const std::string &f, const std::string &l);
     float GetTimeTaken(const Timer &t, const std::string &f, const std::string &l);
 
-#if defined(USEHIP) || defined(USECUDA)
+#if defined(_GPU)
     std::string ReportTimeTakenOnDevice(const Timer &t, const std::string &f, const std::string &l);
     float GetTimeTakenOnDevice(const Timer &t, const std::string &f, const std::string &l);
 #endif
@@ -541,6 +546,7 @@ namespace profiling_util {
 #define MPILoggerTimeTakenOnDevice(logger,timer) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportTimeTakenOnDevice(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #endif 
 #define NewTimer() profiling_util::Timer(__func__, std::to_string(__LINE__));
+#define NewTimerHostOnly() profiling_util::Timer(__func__, std::to_string(__LINE__), false);
 //@}
 
 /// \defgroup C_naming
