@@ -3,10 +3,10 @@
 GPU=hip
 MPICXX=hipcc
 LIBDIR=$(shell pwd)/../../lib/
-LIB=-lprofile_util_${GPU}_mpi_omp
+LIB=-lprofile_util_${GPU}_mpi_omp -lmpi -lmpi_gtl_hsa
 INCDIR=$(shell pwd)/../../include/ 
-FLAGS=-L$(LIBDIR) -I$(INCDIR) -Wl,-rpath=$(LIBDIR) -D_HIP -D_MPI -std=c++17 -fopenmp
-CXXFLAGS?=
+FLAGS=-L$(LIBDIR) -I$(INCDIR) -Wl,-rpath=$(LIBDIR) -D_HIP -D_MPI -std=c++17 -fopenmp 
+CXXFLAGS?=-I${CRAY_MPICH_DIR}/include/ -L${CRAY_MPICH_DIR}/lib/ -L${CRAY_MPICH_ROOTDIR}/gtl/lib/
 
 all: bin/gpu-mpi-comm
 
