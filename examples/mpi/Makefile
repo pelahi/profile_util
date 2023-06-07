@@ -14,14 +14,14 @@ clean:
 	rm -f bin/mpi-compute
 	rm -f bin/mpi-io
 
-bin/mpivec_cpp: mpivec.cpp
-	$(MPICXX) $(FLAGS) $(CXXFLAGS) mpivec.cpp -o bin/mpivec_cpp $(LIB)
+bin/mpivec_cpp: src/mpivec.cpp
+	$(MPICXX) $(FLAGS) $(CXXFLAGS) src/mpivec.cpp -o bin/mpivec_cpp $(LIB)
 
-bin/mpicomm_cpp: mpicomm.cpp
-	$(MPICXX) $(FLAGS) $(CXXFLAGS) mpicomm.cpp -o bin/mpicomm_cpp $(LIB)
+bin/mpicomm_cpp: src/mpicomm.cpp
+	$(MPICXX) $(FLAGS) $(CXXFLAGS) src/mpicomm.cpp -o bin/mpicomm_cpp $(LIB)
 
-bin/mpi-compute: mpi-compute.cpp
-	$(MPICXX) $(FLAGS) $(CXXFLAGS) mpi-compute.cpp -o bin/mpi-compute $(LIB)
+bin/mpi-compute: src/mpi-compute.cpp
+	$(MPICXX) $(FLAGS) $(CXXFLAGS) src/mpi-compute.cpp -o bin/mpi-compute $(LIB)
 
-bin/mpi-io: mpi-io.cpp
-	$(MPICXX) $(FLAGS) $(CXXFLAGS) mpi-io.cpp -o bin/mpi-io $(LIB)
+bin/mpi-io: src/mpi-io.cpp
+	$(MPICXX) $(FLAGS) $(CXXFLAGS) src/mpi-io.cpp -o bin/mpi-io $(LIB)

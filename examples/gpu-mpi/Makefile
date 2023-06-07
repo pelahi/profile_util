@@ -14,6 +14,6 @@ clean:
 	rm -f bin/gpu-mpi-comm
 
 
-bin/gpu-mpi-comm: gpu-mpi-comm.cpp
-	$(MPICXX) $(FLAGS) $(CXXFLAGS) gpu-mpi-comm.cpp -o bin/gpu-mpi-comm $(LIB)
+bin/gpu-mpi-comm: src/gpu-mpi-comm.cpp
+	$(MPICXX) $(FLAGS) $(CXXFLAGS) src/gpu-mpi-comm.cpp -o bin/gpu-mpi-comm $(LIB)
 
