@@ -187,7 +187,18 @@ void MPIReportTimeStats(std::vector<float> times,
     std::string f, std::string l)
 {
     auto[ave, std, mint, maxt] = TimeStats(times);
-    Rank0LocalLoggerWithTime()<<"MPI Comm="<<commname<<" @"<<f<<":L"<<l<<" - message size="<<message_size<<" timing [ave,std,min,max]=[" <<ave<<","<<std<<","<<mint<<","<<maxt<<"] (microseconds)"<<std::endl;
+    auto[percentiles, values] = PercentileStats(times);
+    std::string tinfo;
+    tinfo = "MPI Comm=" + commname + " @" + f + ":L" + l 
+        + " - message size=" + message_size 
+        + " timing [ave,std,min,max]=[" 
+        + std::to_string(ave) + "," + std::to_string(std) + "," 
+        + std::to_string(mint) + "," + std::to_string(maxt) + "] (microseconds), percentiles [";
+    for (auto &p:percentiles) tinfo+=std::to_string(p)+", ";
+    tinfo += "] = [";
+    for (auto &p:values) tinfo+=std::to_string(p)+", ";
+    tinfo += "], ";
+    Rank0LocalLoggerWithTime()<<tinfo<<std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
@@ -219,9 +230,11 @@ std::string GetTransferAndBandwidth(
     return perinfo;
 }
 
-/// \defgroup Performance 
+/// \defgroup Host MPI (CPU-to-CPU) Performance 
 //@{
 
+/// @brief Test host (CPU) send receive
+/// @param opt Options struct containing runtime information
 void MPITestCPUSendRecv(Options &opt) 
 {
     MPI_Status status;
@@ -233,7 +246,7 @@ void MPITestCPUSendRecv(Options &opt)
     double * p1 = nullptr, *p2 = nullptr;
     auto  sizeofsends = MPISetSize(opt.maxgb);
 
-    // now allreduce 
+    // now send receive 
     mpifunc = "CPU_sendrecv";
     LogMPITest();
     for (auto i=0;i<sizeofsends.size();i++) 
@@ -302,6 +315,8 @@ void MPITestCPUSendRecv(Options &opt)
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
+/// @brief Test host (CPU) collective
+/// @param opt Options struct containing runtime information
 void MPITestCPUAllReduce(Options &opt) 
 {
     MPI_Status status;
@@ -366,9 +381,9 @@ void MPITestCPUAllReduce(Options &opt)
     Rank0ReportMem();
     MPI_Barrier(MPI_COMM_WORLD);
 }
-//@}
 
-/// Test whether the MPI interface sends the correct data 
+/// @brief Test whether the MPI interface sends the correct data 
+/// @param opt Options struct containing runtime information
 void MPITestCPUCorrectSendRecv(Options &opt) 
 {
     MPI_Barrier(MPI_COMM_WORLD);
@@ -440,9 +455,10 @@ void MPITestCPUCorrectSendRecv(Options &opt)
     data.shrink_to_fit();
     p1 = p2 = nullptr;
 }
+
 //@}
 
-/// @brief GPU MPI tests
+/// \defgroup Device MPI (GPU-to-GPU) Performance 
 //@{
 
 void MPITestGPUCopy(Options &opt){
@@ -523,7 +539,7 @@ void MPITestGPUBandwidthSendRecv(Options &opt)
     for (auto &x:gpu_p1) x=nullptr;
     for (auto &x:gpu_p2) x=nullptr;
 
-    // now allreduce 
+    // now bandwidth measurement for send receive 
     mpifunc = "GPU_bandwidth_sendrecv";
     LogMPITest();
     for (auto i=0;i<sizeofsends.size();i++) 
@@ -667,35 +683,35 @@ void MPITestGPUAsyncSendRecv(Options &opt)
                 if (ThisLocalTask[j] == 0) {LocalLoggerWithTime()<<"Communicating using comm "<<mpi_comms_name[j]<<" with device "<<idev<<std::endl;}
                 std::vector<float> times;
                 for (auto iter=0;iter<opt.Niter;iter++) {
-                    auto time2 = NewTimer();
+                    auto time2 = NewTimerHostOnly();
                     std::vector<MPI_Request> sendreqs, recvreqs;
-                    for (auto isend=0;isend<NProcsLocal[j];isend++) 
-                    {
+                    for (auto isend=0;isend<NProcsLocal[j];isend++) {
                         if (isend != ThisLocalTask[j]) 
                         {
                             MPI_Request request;
-                            int tag = isend*NProcsLocal[j]+ThisLocalTask[j];
+                            int tag = isend*NProcsLocal[j]+ThisLocalTask[j]+idev;
                             MPI_Isend(p1, sizeofsends[i], MPI_DOUBLE, isend, tag, mpi_comms[j], &request);
                             sendreqs.push_back(request);
                         }
                     }
-                    LocalLoggerWithTime()<<" Placed isends "<<sendreqs.size()<<std::endl;
-                    for (auto irecv=0;irecv<NProcsLocal[j];irecv++) 
-                    {
+                    // LocalLoggerWithTime()<<" Placed isends "<<sendreqs.size()<<std::endl;
+                    for (auto irecv=0;irecv<NProcsLocal[j];irecv++) {
                         if (irecv != ThisLocalTask[j]) 
                         {
                             MPI_Request request;
-                            int tag = ThisLocalTask[j]*NProcsLocal[j]+irecv;
+                            int tag = ThisLocalTask[j]*NProcsLocal[j]+irecv+idev;
                             MPI_Irecv(p2, sizeofsends[i], MPI_DOUBLE, irecv, tag, mpi_comms[j], &request);
                             recvreqs.push_back(request);
                         }
                     }
+                    // LocalLoggerWithTime()<<" Received ireceives "<<recvreqs.size()<<std::endl;
                     MPI_Waitall(sendreqs.size(), sendreqs.data(), MPI_STATUSES_IGNORE);
                     MPI_Waitall(recvreqs.size(), recvreqs.data(), MPI_STATUSES_IGNORE);
-                    LocalLoggerWithTime()<<" Received ireceives "<<recvreqs.size()<<std::endl;
                     auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
                     times.insert(times.end(), times_tmp.begin(), times_tmp.end());
+                    // LocalLoggerWithTime()<<" finished send recevies"<<std::endl;
                 }
+                LocalLoggerWithTime()<<" completed send receives "<<std::endl;
                 MPI_Barrier(MPI_COMM_WORLD);
                 MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
             }
@@ -819,10 +835,99 @@ void MPITestGPUCorrectSendRecv(Options &opt){
     Rank0ReportMem();
     MPI_Barrier(MPI_COMM_WORLD);
 };
-void MPITestGPUAllReduce(Options &opt){
 
+/// @brief Test collective GPU-GPU communication works
+/// @param opt Options struct containing runtime information
+void MPITestGPUAllReduce(Options &opt){
+    if (NProcs<2) return;
+    MPI_Status status;
+    auto comm_all = MPI_COMM_WORLD;
+    std::string mpifunc;
+    auto[numcoms, mpi_comms, mpi_comms_name, ThisLocalTask, NProcsLocal, NLocalComms] = MPIAllocateComms();
+    std::vector<double> senddata, receivedata;
+    
+    double * p1 = nullptr, *p2 = nullptr;
+    //double *gpu_p1 = nullptr, *gpu_p2 = nullptr;
+    std::vector<double*> gpu_p1, gpu_p2;
+    std::vector<float> mpitransfertimes, mpitransferbandwidth;
+    auto  sizeofsends = MPISetSize(opt.maxgb);
+
+    int nDevices;
+    pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
+    gpu_p1.resize(nDevices);
+    gpu_p2.resize(nDevices);
+    for (auto &x:gpu_p1) x=nullptr;
+    for (auto &x:gpu_p2) x=nullptr;
+
+    // now bandwidth measurement for send receive 
+    mpifunc = "GPU_allreduce";
+    LogMPITest();
+    for (auto i=0;i<sizeofsends.size();i++) 
+    {
+        auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
+        LogMPIAllComm();
+        auto nbytes = sizeofsends[i]*sizeof(double);
+        senddata.resize(sizeofsends[i]);
+        receivedata.resize(sizeofsends[i]);
+        for (auto idev=0;idev<nDevices;idev++) {
+            LocalLoggerWithTime()<<" allocating memory on device "<<idev<<std::endl;
+            pu_gpuErrorCheck(pu_gpuSetDevice(idev));
+            pu_gpuErrorCheck(pu_gpuHostMalloc((void**)&gpu_p1[idev], nbytes));
+            pu_gpuErrorCheck(pu_gpuHostMalloc((void**)&gpu_p2[idev], nbytes));
+            pu_gpuErrorCheck(pu_gpuMemcpy(gpu_p1[idev], senddata.data(), nbytes, pu_gpuMemcpyHostToDevice));
+        }
+        Rank0ReportMem();
+        MPILog0NodeMemUsage(comm_all);
+        MPILog0NodeSystemMem(comm_all);
+        for (auto &d:senddata) d = pow(2.0,ThisTask);
+        auto time1 = NewTimer();
+        for (auto j=0;j<mpi_comms.size();j++)
+        {
+            // need to move this to an async mpi test 
+            for (auto idev=0; idev<nDevices;idev++) {
+                pu_gpuErrorCheck(pu_gpuSetDevice(idev));
+                float timetaken=0.0, bandwidth=0.0;
+                pu_gpuEvent_t gpuEventStart, gpuEventStop;
+                pu_gpuErrorCheck(pu_gpuEventCreate(&gpuEventStart));
+                pu_gpuErrorCheck(pu_gpuEventCreate(&gpuEventStop));
+                p1 = gpu_p1[idev];
+                p2 = gpu_p2[idev];
+                if (ThisLocalTask[j] == 0) {LocalLoggerWithTime()<<"Communicating using comm "<<mpi_comms_name[j]<<" with device "<<idev<<std::endl;}
+                std::vector<float> times;
+                for (auto iter=0;iter<opt.Niter;iter++) {
+                    pu_gpuErrorCheck(pu_gpuEventRecord(gpuEventStart));
+                    MPI_Allreduce(p1, p2, sizeofsends[i], MPI_DOUBLE, MPI_SUM, mpi_comms[j]);
+                    pu_gpuErrorCheck(pu_gpuEventRecord(gpuEventStop));
+                    pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
+                    pu_gpuErrorCheck(pu_gpuEventElapsedTime(&timetaken, gpuEventStart, gpuEventStop));
+                    mpitransfertimes.push_back(timetaken*_GPU_TO_SECONDS);
+                    mpitransferbandwidth.push_back(nbytes/1024.0/1024.0/1024.0/(timetaken*_GPU_TO_SECONDS));
+                }
+                auto s = GetTransferAndBandwidth(mpitransfertimes,mpitransferbandwidth);
+                LocalLoggerWithTime()<<" GPU "<<idev<<" collective:"<<s<<std::endl;
+                mpitransfertimes.clear();
+                mpitransferbandwidth.clear();
+            }
+        }
+
+        for (auto idev=0;idev<nDevices;idev++) {
+            LocalLoggerWithTime()<<" Freeing memory on "<<idev<<std::endl;
+            pu_gpuErrorCheck(pu_gpuSetDevice(idev));
+            pu_gpuErrorCheck(pu_gpuFree(gpu_p1[idev]));
+            pu_gpuErrorCheck(pu_gpuFree(gpu_p2[idev]));
+        }
+    }
+    senddata.clear();
+    senddata.shrink_to_fit();
+    receivedata.clear();
+    receivedata.shrink_to_fit();
+    gpu_p1.clear();
+    gpu_p2.clear();
+    Rank0ReportMem();
+    MPI_Barrier(MPI_COMM_WORLD);
 };
-//}
+
+//@}
 
 void MPIRunTests(Options &opt)
 {
