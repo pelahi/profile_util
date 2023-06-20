@@ -13,11 +13,6 @@
 #include <omp.h>
 #endif
 
-std::chrono::system_clock::time_point logtime;
-std::time_t log_time;
-char wherebuff[1000];
-std::string whenbuff;
-
 template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
 {
     std::vector<T> v(N);
@@ -26,9 +21,10 @@ template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
     std::normal_distribution<> distr(0,1);
     auto t_init = NewTimer();
     #pragma omp parallel \
-    default(none) shared(v,N) firstprivate(gen,distr) \
+    default(none) shared(v,N) firstprivate(gen,distr) LOGGING() \
     if (N>10000)
     {
+        #pragma omp critical
         LogThreadAffinity();
         #pragma omp for 
         for (auto i=0;i<v.size();i++)
@@ -47,9 +43,10 @@ template<class T> T vector_sq_and_sum_cpu(std::vector<T> &v)
     T sum = 0;
     auto t1 = NewTimer();
     #pragma omp parallel \
-    default(none) shared(v,sum) \
+    default(none) shared(v,sum) LOGGING() \
     if (v.size()>1000)
     {
+        #pragma omp critical
         LogThreadAffinity();
         #pragma omp for reduction(+:sum) nowait 
         for (auto i=0;i<v.size();i++)
@@ -66,7 +63,7 @@ template<class T> T vector_sq_and_sum_cpu(std::vector<T> &v)
         sum_serial += x*x;
     }
     LogTimeTaken(t1);
-    std::cout<<__func__<<" "<<__LINE__<<" "<<v.size()<<" omp reduction "<<sum<<" serial sum  "<<sum_serial<<std::endl;
+    Log()<<v.size()<<" omp reduction "<<sum<<" serial sum  "<<sum_serial<<std::endl;
     return sum;
 }
 
@@ -98,7 +95,7 @@ void allocate_mem_gpu(unsigned long long Nentries,
     std::vector<double*> &y_double) 
 {
     auto time_mem = NewTimerHostOnly();
-    LocalLogger()<<"Allocating on GPU running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
+    Log()<<"Allocating on GPU running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
     int nDevices;
     size_t nbytes;
     pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
@@ -138,7 +135,7 @@ void transfer_to_gpu(unsigned long long Nentries,
     std::vector<double*> &y_double_gpu
     ) 
 {
-    LocalLogger()<<" Transfer data to GPU"<<std::endl;
+    Log()<<" Transfer data to GPU"<<std::endl;
     auto time_mem = NewTimerHostOnly();
     int nDevices;
     size_t nbytes;
@@ -170,7 +167,7 @@ void transfer_from_gpu(unsigned long long Nentries,
     std::vector<double*> &y_double_gpu
     ) 
 {
-    LocalLogger()<<" Transfer data from GPU"<<std::endl;
+    Log()<<" Transfer data from GPU"<<std::endl;
     auto time_mem = NewTimerHostOnly();
     int nDevices;
     pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));

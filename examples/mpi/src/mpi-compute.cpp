@@ -31,7 +31,6 @@
 #include <thread>
 #include <profile_util.h>
 
-
 #ifdef USEOPENMP
 #include <omp.h>
 #endif
@@ -182,7 +181,7 @@ std::tuple<unsigned long long,
     auto Nlocal = N/static_cast<unsigned long long>(NProcs);
     if (ThisTask == NProcs - 1) Nlocal = N-Nlocal*(NProcs-1);
     std::vector<PointData> data(Nlocal);
-    std::cout<<__func__<<": Rank "<<ThisTask<<" producing "<<Nlocal<<std::endl;
+    Log()<<"Producing "<<Nlocal<<std::endl;
     auto time1 = NewTimer();
 
 #if defined(USEOPENMP)
@@ -224,7 +223,7 @@ std::tuple<unsigned long long,
 
 void TransformData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data)
 {
-    if (ThisTask==0) std::cout<<__func__<<" transforming data ... "<<std::endl;
+    if (ThisTask==0) Log()<<"Transforming data ... "<<std::endl;
     auto time1 = NewTimer();
 #if defined(USEOPENMP)
 #pragma omp parallel default(shared)
@@ -254,7 +253,7 @@ void TransformData(Options &opt, unsigned long long Nlocal, std::vector<PointDat
 
 std::vector<double> GridData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data)
 {
-    if (ThisTask==0) std::cout<<__func__<<" gridding ... "<<std::endl;
+    if (ThisTask==0) Log()<<" gridding ... "<<std::endl;
     auto time1 = NewTimer();
     auto n3 = opt.ngrid * opt.ngrid * opt.ngrid;
     auto n2 = opt.ngrid * opt.ngrid;
@@ -331,7 +330,7 @@ inline std::tuple<std::vector<unsigned long long>, std::vector<double>> getstenc
 }
 std::vector<double> ComputeWithData(Options &opt, unsigned long long Nlocal, std::vector<PointData> &data, std::vector<double> &griddata)
 {
-    if (ThisTask == 0) std::cout<<__func__<<" computing ... "<<std::endl;
+    if (ThisTask == 0) Log()<<" computing ... "<<std::endl;
     auto time1 = NewTimer();
     auto n2 = opt.ngrid * opt.ngrid;
     auto n = opt.ngrid;
@@ -370,7 +369,7 @@ inline int GetProc(double w, double x) {return static_cast<int>(std::floor(x/w))
 void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<PointData> &data)
 {
     if (NProcs < 2) return;
-    if (ThisTask == 0) std::cout<<__func__<<" redistributing ..."<<std::endl;
+    if (ThisTask == 0) Log()<<" redistributing ..."<<std::endl;
     std::vector<int> Nsend(NProcs), Nrecv(NProcs*NProcs);
     unsigned long long ntotsend = 0, ntotrecv = 0, nranksend = 0, nrankrecv = 0;
     auto slabwidth = opt.p/static_cast<double>(NProcs);
@@ -419,7 +418,7 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
             }
         }
     }
-    std::cout<<message<<std::endl;
+    Log()<<message<<std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
     auto NewNlocal = Nlocal-ntotsend+ntotrecv;
     data.resize(NewNlocal);
@@ -464,7 +463,7 @@ void RedistributeData(Options &opt, unsigned long long &Nlocal, std::vector<Poin
             }
         }
     }
-    std::cout<<__func__<<": Rank "<<ThisTask<<" now has "<<Nlocal<<std::endl;
+    Log()<<" now has "<<Nlocal<<std::endl;
     MPIReportTimeStats(time2, __func__, std::to_string(__LINE__));
 }
 
@@ -474,12 +473,15 @@ int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Comm_size(comm, &NProcs);
+    if (NProcs<2) {
+        LogErr()<<" Not enough mpi processes, only "<<NProcs<<" found. Must have at least 2"<<std::endl;
+        MPI_Abort(comm,1);
+    }
     MPI_Comm_rank(comm, &ThisTask);
+    MPISetLoggingComm(comm);
     Options opt;
 
-    auto start = std::chrono::system_clock::now();
-    std::time_t start_time = std::chrono::system_clock::to_time_t(start);
-    if (ThisTask==0) std::cout << "Starting job at " << std::ctime(&start_time);
+    if (ThisTask==0) Log() << "Starting job "<<std::endl;
     if (argc >= 2) opt.npoints = atoi(argv[1]);
     if (argc >= 3) opt.Niter = atoi(argv[2]);
     if (argc >= 4) opt.deltap = atof(argv[3]);
@@ -498,7 +500,7 @@ int main(int argc, char **argv) {
     auto timeloop = NewTimer();
     for (auto i=0;i<opt.Niter;i++) 
     {
-        if (ThisTask == 0) std::cout<<"At iteration "<<i<<std::endl;
+        if (ThisTask == 0) Log()<<"At iteration "<<i<<std::endl;
         TransformData(opt, Nlocal, data);
         auto griddata = GridData(opt, Nlocal, data);
 #ifdef USEFFTW
@@ -511,9 +513,7 @@ int main(int argc, char **argv) {
     }
     LogTimeTaken(timeloop);
 
-    auto end = std::chrono::system_clock::now();
-    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
-    if (ThisTask==0) std::cout << "Ending job at " << std::ctime(&end_time);
+    if (ThisTask==0) Log() << "Ending job"<<std::endl;
     MPI_Finalize();
     return 0;
 }

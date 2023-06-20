@@ -15,22 +15,17 @@ std::time_t log_time;
 char wherebuff[1000];
 std::string whenbuff;
 
-#define Where() sprintf(wherebuff,"[%04d] @%sL%d ", ThisTask,__func__, __LINE__);
-#define When() logtime = std::chrono::system_clock::now(); log_time = std::chrono::system_clock::to_time_t(logtime);whenbuff=std::ctime(&log_time);whenbuff.erase(std::find(whenbuff.begin(), whenbuff.end(), '\n'), whenbuff.end());
-#define LocalLogger() Where();std::cout<<wherebuff<<" : " 
-#define Rank0LocalLogger() Where();if (ThisTask==0) std::cout<<wherebuff<<" : " 
-#define LocalLoggerWithTime() Where();When(); std::cout<<wherebuff<<" ("<<whenbuff<<") : "
-#define Rank0LocalLoggerWithTime() Where();When(); if (ThisTask==0) std::cout<<wherebuff<<" ("<<whenbuff<<") : "
-#define LogMPITest() Rank0LocalLoggerWithTime()<<" running "<<mpifunc<< " test"<<std::endl;
-#define LogMPIBroadcaster() if (ThisTask == itask) LocalLoggerWithTime()<<" running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
-#define LogMPISender() LocalLoggerWithTime()<<" Running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
-#define LogMPIReceiver() if (ThisTask == itask) LocalLoggerWithTime()<<" running "<<mpifunc<<std::endl;
-#define LogMPIAllComm() Rank0LocalLoggerWithTime()<<" running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
-#define Rank0ReportMem() if (ThisTask==0) {Where();When();std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogMemUsage();std::cout<<wherebuff<<" ("<<whenbuff<<") : ";LogSystemMem();}
+#define Rank0LocalLogger() if (ThisTask==0) Log()<<wherebuff<<" : " 
+#define LogMPITest() Rank0LocalLogger()<<" running "<<mpifunc<< " test"<<std::endl;
+#define LogMPIBroadcaster() if (ThisTask == itask) Log()<<"Running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
+#define LogMPISender() Log()<<"Running "<<mpifunc<<" sending "<<sendsize<<" GB"<<std::endl;
+#define LogMPIReceiver() if (ThisTask == itask) Log()<<"Running "<<mpifunc<<std::endl;
+#define LogMPIAllComm() Rank0LocalLogger()<<"Running "<<mpifunc<<" all "<<sendsize<<" GB"<<std::endl;
+#define Rank0ReportMem() if (ThisTask==0) {LogMemUsage();LogSystemMem();}
 
 void WriteCollective(MPI_Comm &comm, std::string &fnamebase) {
     std::string fname=fnamebase+std::string(".collective.example.txt");
-    Rank0LocalLoggerWithTime()<<" Starting collective binary write to "<<fname<<std::endl;    
+    Rank0LocalLogger()<<" Starting collective binary write to "<<fname<<std::endl;    
     MPI_File file;
     MPI_Offset offset;
     MPI_Status status;
@@ -47,12 +42,12 @@ void WriteCollective(MPI_Comm &comm, std::string &fnamebase) {
     MPI_File_write_at_all(file, offset, buffer.data(), buffer.size(), MPI_INT, &status);
     // Close the file
     MPI_File_close(&file);
-    Rank0LocalLoggerWithTime()<<" Finished collective binary write "<<std::endl;    
+    Rank0LocalLogger()<<" Finished collective binary write "<<std::endl;    
 }
 
 void WriteNonCollective(MPI_Comm &comm, std::string &fnamebase) {
     std::string fname=fnamebase+std::string(".non-collective.example.txt");
-    Rank0LocalLoggerWithTime()<<" Starting non-collective binary write to "<<fname<<std::endl;
+    Rank0LocalLogger()<<" Starting non-collective binary write to "<<fname<<std::endl;
     MPI_File file;
     MPI_Offset offset;
     MPI_Status status;
@@ -72,7 +67,7 @@ void WriteNonCollective(MPI_Comm &comm, std::string &fnamebase) {
 
     // Close the file
     MPI_File_close(&file);
-    Rank0LocalLoggerWithTime()<<" Finished non-collective binary write "<<std::endl;    
+    Rank0LocalLogger()<<" Finished non-collective binary write "<<std::endl;    
 }
 
 int main(int argc, char *argv[]) {
@@ -80,6 +75,7 @@ int main(int argc, char *argv[]) {
     auto comm = MPI_COMM_WORLD;
     MPI_Comm_rank(comm, &ThisTask);
     MPI_Comm_size(comm, &NProcs);
+    MPISetLoggingComm(comm);
     std::string fname = "mpi-io";
     if (argc == 2) fname = std::string(argv[1]);
 
@@ -88,10 +84,10 @@ int main(int argc, char *argv[]) {
     log_time = std::chrono::system_clock::to_time_t(logtime);
     auto start = std::chrono::system_clock::now();
     std::time_t start_time = std::chrono::system_clock::to_time_t(start);
-    Rank0LocalLoggerWithTime()<<"Starting job "<<std::endl;
+    Rank0LocalLogger()<<"Starting job "<<std::endl;
     Rank0ReportMem();
-    MPILog0NodeMemUsage(comm);
-    MPILog0NodeSystemMem(comm);
+    MPILog0NodeMemUsage();
+    MPILog0NodeSystemMem();
     MPILog0ParallelAPI();
     MPILog0Binding();
 
@@ -100,7 +96,7 @@ int main(int argc, char *argv[]) {
     WriteNonCollective(comm,fname);
 
     // finish job
-    Rank0LocalLoggerWithTime()<<"Ending job "<<std::endl;
+    Rank0LocalLogger()<<"Ending job "<<std::endl;
     MPI_Finalize();
     return 0;
 }

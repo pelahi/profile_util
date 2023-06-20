@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <memory>
 #include <array>
+#include <algorithm>
 
 #include <sched.h>
 #include <stdlib.h>
@@ -119,7 +120,13 @@ do{                                                                             
 //@}
 
 namespace profiling_util {
+    #ifdef _MPI
+    extern MPI_Comm __comm;
+    extern int __comm_rank;
+    #endif
 
+    /// function that returns a string of the time at when it is called. 
+    std::string __when();
     /// function that converts the mask of thread affinity to human readable string 
     void cpuset_to_cstr(cpu_set_t *mask, char *str);
     /// reports the parallelAPI 
@@ -478,56 +485,70 @@ namespace profiling_util {
 #endif
 }
 
-/// \def utility definitions 
+/// \def logger utility definitions 
 //@{
-#define _where_calling_from "@"<<__func__<<" L"<<std::to_string(__LINE__)
-/// MPI helper routines
-//{@
+#define _where_calling_from "@"<<__func__<<" L"<<std::to_string(__LINE__)<<" "
+#define _when_calling_from "("<<profiling_util::__when()<<") : "
 #ifdef _MPI 
-//#define MPIOnly0 if (ThisTask == 0)
-#define _MPI_calling_rank(task) "["<<std::setw(5) << std::setfill('0')<<task<<"] "<<std::setw(0)
-
+#define _MPI_calling_rank "["<<std::setw(5) << std::setfill('0')<<profiling_util::__comm_rank<<"] "<<std::setw(0)
+#define _log_header _MPI_calling_rank<<_where_calling_from<<_when_calling_from
+#else 
+#define _log_header _where_calling_from<<_when_calling_from
 #endif
-    //@}
+
 //@}
+
+/// \def gerenal logging  
+//@{
+#ifdef _MPI
+#define MPISetLoggingComm(comm) {profiling_util::__comm = comm; MPI_Comm_rank(profiling_util::__comm, &profiling_util::__comm_rank);}
+#endif
+#define Logger(logger) logger<<_log_header
+#define Log() std::cout<<_log_header
+#define LogErr() std::cerr<<_log_header
+#ifdef _OPENMP
+#define LOGGING() shared(profiling_util::__comm, profiling_util::__comm_rank, std::cout)
+#endif
+//@}
+
 /// \defgroup LogAffinity
 /// Log thread affinity and parallelism either to std or an ostream
 //@{
-#define LogParallelAPI() std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
-#define LogBinding() std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportBinding()<<std::endl;
-#define LogThreadAffinity() printf("%s \n", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
-#define LoggerThreadAffinity(logger) logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
+#define LogParallelAPI() Log()<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
+#define LogBinding() Log()<<"\n"<<profiling_util::ReportBinding()<<std::endl;
+#define LogThreadAffinity() {auto __s = profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)); Log()<<__s;}
+#define LoggerThreadAffinity(logger) {auto __s = <<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)); Logger(logger)<<__s;}
 #ifdef _MPI
-#define MPILog0ThreadAffinity() if(ThisTask == 0) printf("%s \n", profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__)).c_str());
-#define MPILogger0ThreadAffinity(logger) if(ThisTask == 0)logger<<profiling_util::ReportThreadAffinity(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILogThreadAffinity(comm) printf("%s \n", profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm).c_str());
-#define MPILoggerThreadAffinity(logger, comm) logger<<profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), comm)<<std::endl;
-#define MPILog0ParallelAPI() if(ThisTask==0) std::cout<<_where_calling_from<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
-#define MPILog0Binding() {auto s =profiling_util::ReportBinding(); if (ThisTask == 0) std::cout<<_where_calling_from<<"\n"<<s<<std::endl;}
+#define MPILog0ThreadAffinity() if(profiling_util::__comm_rank == 0) LogThreadAffinity();
+#define MPILogger0ThreadAffinity(logger) if(profiling_util::__comm_rank == 0) LogThreadAffinity(logger);
+#define MPILogThreadAffinity() {auto __s = profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__),  profiling_util::__comm); Log()<<__s;}
+#define MPILoggerThreadAffinity(logger) {auto __s = profiling_util::MPIReportThreadAffinity(__func__, std::to_string(__LINE__), profiling_util::__comm); Logger(logger)<<__s;}
+#define MPILog0ParallelAPI() if(profiling_util::__comm_rank == 0) Log()<<"\n"<<profiling_util::ReportParallelAPI()<<std::endl;
+#define MPILog0Binding() {auto s = profiling_util::ReportBinding(); if (profiling_util::__comm_rank == 0)Log()<<"\n"<<s<<std::endl;}
 #endif
 //@}
 
 /// \defgroup LogMem
 /// Log memory usage either to std or an ostream
 //@{
-#define LogMemUsage() std::cout<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
-#define LoggerMemUsage(logger) logger<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define LogMemUsage() Log()<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerMemUsage(logger) Logger(logger)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
 
 #ifdef _MPI
-#define MPILogMemUsage() std::cout<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerMemUsage(logger) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILog0NodeMemUsage(comm) {auto report=profiling_util::MPIReportNodeMemUsage(comm, __func__, std::to_string(__LINE__));if (ThisTask == 0) {std::cout<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}}
-#define MPILogger0NodeMemUsage(logger, comm) {auto report=profiling_util::MPIReportNodeMemUsage(comm, __func__, std::to_string(__LINE__));if (ThisTask == 0) logger<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}
+#define MPILogMemUsage() Log()<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerMemUsage(logger) Logger(logger)<<profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILog0NodeMemUsage() {auto __s=profiling_util::MPIReportNodeMemUsage(profiling_util::__comm, __func__, std::to_string(__LINE__)); if (profiling_util::__comm_rank == 0) {Log()<<__s<<std::endl;}}
+#define MPILogger0NodeMemUsage(logger) {auto __s=profiling_util::MPIReportNodeMemUsage(profiling_util::__comm, __func__, std::to_string(__LINE__)); int __comm_rank; if (profiling_util::__comm_rank == 0) {Logger(logger)<<__s<<std::endl;}}
 #endif
 
 #define LogSystemMem() std::cout<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
 #define LoggerSystemMem(logger) logger<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
 
 #ifdef _MPI
-#define MPILogSystemMem() std::cout<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerSystemMem(logger) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILog0NodeSystemMem(comm) {auto report=profiling_util::MPIReportNodeSystemMem(comm, __func__, std::to_string(__LINE__));if (ThisTask == 0){std::cout<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}}
-#define MPILogger0NodeSystemMem(logger, comm) {auto report = profiling_util::MPIReportNodeSystemMem(__func__, std::to_string(__LINE__));if (ThisTask == 0) {logger<<_MPI_calling_rank(ThisTask)<<report<<std::endl;}}
+#define MPILogSystemMem() Log()<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerSystemMem(logger) Logger(logger)<<profiling_util::ReportSystemMem(__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILog0NodeSystemMem() {auto __s=profiling_util::MPIReportNodeSystemMem(profiling_util::__comm, __func__, std::to_string(__LINE__));if (profiling_util::__comm_rank == 0){Log()<<__s<<std::endl;}}
+#define MPILogger0NodeSystemMem(logger) {auto __s = profiling_util::MPIReportNodeSystemMem(profiling_util::__comm, __func__, std::to_string(__LINE__));if (profiling_util::__comm_rank == 0) {Logger(logger)<<__s<<std::endl;}}
 #endif
 //@}
 
@@ -535,15 +556,15 @@ namespace profiling_util {
 /// \defgroup LogTime
 /// Log time taken either to std or an ostream
 //@{
-#define LogTimeTaken(timer) std::cout<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
-#define LoggerTimeTaken(logger,timer) logger<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
-#define LogTimeTakenOnDevice(timer) std::cout<<profiling_util::ReportTimeTakenOnDevice(timer, __func__, std::to_string(__LINE__))<<std::endl;
-#define LoggerTimeTakenOnDevice(logger,timer) logger<<profiling_util::ReportTimeTakenOnDevice(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#define LogTimeTaken(timer) Log()<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerTimeTaken(logger,timer) Logger(logger)<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#define LogTimeTakenOnDevice(timer) Log()<<profiling_util::ReportTimeTakenOnDevice(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerTimeTakenOnDevice(logger,timer) Logger(logger)<<profiling_util::ReportTimeTakenOnDevice(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #ifdef _MPI
-#define MPILogTimeTaken(timer) std::cout<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerTimeTaken(logger,timer) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
-#define MPILogTimeTakenOnDevice(timer) std::cout<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportTimeTakenOnDevice(timer, __func__, std::to_string(__LINE__))<<std::endl;
-#define MPILoggerTimeTakenOnDevice(logger,timer) logger<<_MPI_calling_rank(ThisTask)<<profiling_util::ReportTimeTakenOnDevice(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogTimeTaken(timer) Log()<<profiling_util::ReportTimeTaken(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerTimeTaken(logger,timer) Logger(logger)<<profiling_util::ReportTimeTaken(timer,__func__, std::to_string(__LINE__))<<std::endl;
+#define MPILogTimeTakenOnDevice(timer) Log()<<profiling_util::ReportTimeTakenOnDevice(timer, __func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerTimeTakenOnDevice(logger,timer) Logger(logger)<<profiling_util::ReportTimeTakenOnDevice(timer,__func__, std::to_string(__LINE__))<<std::endl;
 #endif 
 #define NewTimer() profiling_util::Timer(__func__, std::to_string(__LINE__));
 #define NewTimerHostOnly() profiling_util::Timer(__func__, std::to_string(__LINE__), false);

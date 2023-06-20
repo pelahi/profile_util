@@ -19,9 +19,10 @@ template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
     std::normal_distribution<> distr(0,1);
     auto t_init = NewTimer();
     #pragma omp parallel \
-    default(none) shared(v,N) firstprivate(gen,distr) \
+    default(none) shared(v,N,std::cout) firstprivate(gen,distr) \
     if (N>10000)
     {
+        #pragma omp critical
         LogThreadAffinity();
 //        #pragma omp for 
 //        for (auto &x:v)
@@ -43,9 +44,10 @@ template<class T> T vector_sq_and_sum(std::vector<T> &v)
     T sum = 0;
     auto t1 = NewTimer();
     #pragma omp parallel \
-    default(none) shared(v,sum) \
+    default(none) shared(v,sum,std::cout) \
     if (v.size()>1000)
     {
+        #pragma omp critical
         LogThreadAffinity();
         /*#pragma omp for reduction(+:sum) nowait 
         for (auto &x:v) 
@@ -69,7 +71,7 @@ template<class T> T vector_sq_and_sum(std::vector<T> &v)
         sum_serial += x*x;
     }
     LogTimeTaken(t1);
-    std::cout<<__func__<<" "<<__LINE__<<" "<<v.size()<<" omp reduction "<<sum<<" serial sum  "<<sum_serial<<std::endl;
+    Log()<<v.size()<<" omp reduction "<<sum<<" serial sum  "<<sum_serial<<std::endl;
     return sum;
 }
 
@@ -90,10 +92,11 @@ template<class T> void recursive_vector(std::vector<T> &v)
         #ifdef USEOPENMP
         level = omp_get_level();
         #endif
-        std::cout<<"@"<<__func__<<" L"<<__LINE__<<" spliting vector of size "<<v.size()<<" at "<<split<<" at level "<<level<<std::endl;
+        Log()<<" spliting vector of size "<<v.size()<<" at "<<split<<" at level "<<level<<std::endl;
         #pragma omp parallel \
-        default(none) shared(v, split, left, right) 
+        default(none) shared(v, split, left, right, std::cout) 
         {
+            #pragma omp critical
             LogThreadAffinity();
             #pragma omp single
             {
@@ -101,6 +104,7 @@ template<class T> void recursive_vector(std::vector<T> &v)
                 {
                     #pragma task 
                     {
+                        #pragma omp critical
                         LogThreadAffinity();
                         std::string s = "Left split of " + std::to_string(split);
                         printf("%s\n",s.c_str());
@@ -130,7 +134,7 @@ void allocate_mem(unsigned long long Nentries, std::vector<int> &x_int, std::vec
     std::vector<double> &x_double, std::vector<double> &y_double) 
 {
     auto time_mem = NewTimer();
-    std::cout<<"Vectorization test running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
+    Log()<<"Vectorization test running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
     x_int.resize(Nentries);
     y_int.resize(Nentries);
     x_float.resize(Nentries);
@@ -176,11 +180,12 @@ void vector_vectorization_test(unsigned long long Nentries,
     #ifdef USEOPENMP
     #pragma omp parallel \
     default(none) \
-    shared(x_int, y_int, x_float, y_float, x_double, y_double, Nentries) \
+    shared(x_int, y_int, x_float, y_float, x_double, y_double, Nentries, std::cout) \
     if (nthreads > 1)
     #endif
     {
 #ifdef USEOPENMP 
+    #pragma omp critical
     LogThreadAffinity();
     #pragma omp for schedule(static)
 #endif
@@ -235,7 +240,7 @@ int main(int argc, char **argv) {
     std::vector<float> x_float, y_float;
     std::vector<double> x_double, y_double;
     unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0;
-    if (argc == 2) Nentries = atoi(argv[2]);
+    if (argc == 2) Nentries = atoi(argv[1]);
 
     //allocate, test vectorization and deallocate
     //functions showcase use of logging time taken and mem usage

@@ -23,9 +23,10 @@ template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
     std::normal_distribution<> distr(0,1);
     auto t_init = NewTimer();
     #pragma omp parallel \
-    default(none) shared(v,N) firstprivate(gen,distr) \
+    default(none) shared(v,N) firstprivate(gen,distr) LOGGING() \
     if (N>10000)
     {
+        #pragma omp critical
         LogThreadAffinity();
         #pragma omp for 
         for (auto &x:v)
@@ -44,9 +45,10 @@ template<class T> T vector_sq_and_sum(std::vector<T> &v)
     T sum = 0;
     auto t1 = NewTimer();
     #pragma omp parallel \
-    default(none) shared(v,sum) \
+    default(none) shared(v,sum) LOGGING() \
     if (v.size()>1000)
     {
+        #pragma omp critical
         LogThreadAffinity();
         #pragma omp for reduction(+:sum) nowait 
         for (auto &x:v) 
@@ -81,8 +83,9 @@ template<class T> void recursive_vector(std::vector<T> &v)
         std::vector<T> left, right;
         // std::cout<<"@"<<__func__<<" L"<<__LINE__<<" spliting vector of size "<<v.size()<<" at "<<split<<" at level "<<omp_get_level()<<std::endl;
         #pragma omp parallel \
-        default(none) shared(v, split, left, right) 
+        default(none) shared(v, split, left, right) LOGGING() 
         {
+            #pragma omp critical
             LogThreadAffinity();
             #pragma omp single
             {
@@ -90,6 +93,7 @@ template<class T> void recursive_vector(std::vector<T> &v)
                 {
                     #pragma task 
                     {
+                        #pragma omp critical
                         LogThreadAffinity();
                         std::string s = "Left split of " + std::to_string(split);
                         printf("%s\n",s.c_str());
@@ -119,7 +123,7 @@ void allocate_mem(unsigned long long Nentries, std::vector<int> &x_int, std::vec
     std::vector<double> &x_double, std::vector<double> &y_double) 
 {
     auto time_mem = NewTimer();
-    std::cout<<"Vectorization test running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
+    Log()<<"Vectorization test running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
     x_int.resize(Nentries);
     y_int.resize(Nentries);
     x_float.resize(Nentries);
@@ -164,7 +168,7 @@ void vector_vectorization_test(unsigned long long Nentries,
     #ifdef USEOPENMP
     #pragma omp parallel for \
     default(none) \
-    shared(x_int, y_int, x_float, y_float, x_double, y_double, Nentries) \
+    shared(x_int, y_int, x_float, y_float, x_double, y_double, Nentries, std::cout) \
     schedule(static) if (nthreads > 1)
     #endif
     for (auto i=0u; i<Nentries; i++) {
@@ -209,6 +213,7 @@ int main(int argc, char **argv) {
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Comm_size(comm, &NProcs);
     MPI_Comm_rank(comm, &ThisTask);
+    MPISetLoggingComm(comm);
 
     auto start = std::chrono::system_clock::now();
     std::time_t start_time = std::chrono::system_clock::to_time_t(start);
