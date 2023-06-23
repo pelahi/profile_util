@@ -13,6 +13,8 @@
 #endif
 #include <mpi.h>
 
+int ThisTask, NProcs;
+
 #define Rank0LocalLogger() if (ThisTask==0) Log()
 #define LogMPITest() Rank0LocalLogger()<<" running "<<mpifunc<< " test"<<std::endl;
 #define LogMPIBroadcaster() if (ThisTask == itask) Log()<<" running "<<mpifunc<<" broadcasting "<<sendsize<<" GB"<<std::endl;
@@ -390,11 +392,11 @@ void MPITestCPUCorrectSendRecv(Options &opt)
         {
             if (itask == opt.roottask) continue;
             int mpi_err;
-            LocalLogger()<<" receiving from "<<itask<<std::endl;
+            Log()<<" receiving from "<<itask<<std::endl;
             mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, MPI_COMM_WORLD, &status);
-            LocalLogger()<<" size "<<size<<" received from "<<itask<<" with " <<mpi_err<<std::endl;
+            Log()<<" size "<<size<<" received from "<<itask<<" with " <<mpi_err<<std::endl;
             if (size != oldsize) {
-                LocalLogger()<<" GOT WRONG SIZE VALUE from "<<itask<<std::endl;
+                Log()<<" GOT WRONG SIZE VALUE from "<<itask<<std::endl;
                 MPI_Abort(MPI_COMM_WORLD,8);
             }
             data.resize(size);
@@ -404,20 +406,20 @@ void MPITestCPUCorrectSendRecv(Options &opt)
             for (auto &d:refdata) d = pow(2.0,itask);
             for (auto i=0;i<oldsize;i++) {
                 if (data[i] != refdata[i]) {
-                    LocalLogger()<<" GOT WRONG data VALUE from "<<itask<<std::endl;
+                    Log()<<" GOT WRONG data VALUE from "<<itask<<std::endl;
                     MPI_Abort(MPI_COMM_WORLD,8);
                 }
             }
 
             std::string s;
             for (auto &d:data) s+=std::to_string(d) + " ";
-            LocalLogger()<<" received from "<<itask<<" with "<<mpi_err<<std::endl;
+            Log()<<" received from "<<itask<<" with "<<mpi_err<<std::endl;
         }
     }
     else {
         MPI_Request request;
         int mpi_err;
-        LocalLogger()<<" sending to "<<opt.roottask<<" with send type of "<<opt.usesend<<std::endl;
+        Log()<<" sending to "<<opt.roottask<<" with send type of "<<opt.usesend<<std::endl;
         size = data.size();
         p1 = data.data();
         if (opt.usesend == USESEND) {
@@ -434,7 +436,7 @@ void MPITestCPUCorrectSendRecv(Options &opt)
             mpi_err = MPI_Ssend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
             mpi_err = MPI_Ssend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
         }
-        LocalLogger()<<" sent to "<<opt.roottask<<" with "<<mpi_err<<std::endl;
+        Log()<<" sent to "<<opt.roottask<<" with "<<mpi_err<<std::endl;
     }
     if (ThisTask==0) LogTimeTaken(time1);
     data.clear();
