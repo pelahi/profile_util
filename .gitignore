@@ -1,6 +1,8 @@
 lib/*.so
 obj/*.o
-
-examples/openmp/bin/openmp*
-examples/mpi/bin/mpi*
+build/
+examples/openmp/bin/*
+examples/mpi/bin/*
+examples/gpu/bin/*
+examples/gpu-mpi/bin/*
 

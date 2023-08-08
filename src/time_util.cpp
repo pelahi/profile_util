@@ -6,14 +6,6 @@
 
 /// get the time taken to do some comptue 
 namespace profiling_util {
-
-    std::string __when(){
-        auto log_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        std::string whenbuff=std::ctime(&log_time);
-        whenbuff.erase(std::find(whenbuff.begin(), whenbuff.end(), '\n'), whenbuff.end());
-        return whenbuff;
-    }
-
     template <typename T>
     inline
     std::basic_ostream<T> &operator<<(std::basic_ostream<T> &os, const Timer &t) {
