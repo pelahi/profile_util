@@ -15,21 +15,22 @@ macro(pu_option optname optdesc status)
 endmacro()
 pu_option(ENABLE_MPI "Enable mpi" ON)
 pu_option(ENABLE_OPENMP "Enable OpenMP" ON)
-#pu_option(ENABLE_CUDA "Enable CUDA" OFF)
-#pu_option(ENABLE_ROCM "Enable ROCM" OFF)
+pu_option(ENABLE_CUDA "Enable CUDA" OFF)
+pu_option(ENABLE_HIP "Enable HIP" OFF)
+pu_option(ENABLE_HIP_AMD "Enable HIP with AMD (ROCM)" ON)
 
+if ((PU_ENABLE_HIP) AND (PU_ENABLE_CUDA))
+   message(FATAL_ERROR "Build conflict: Requesting both CUDA and HIP. Must have one or the other")
+endif()
 
 # check for MPI 
 pu_mpi()
-
-# # check for openmp 
+# check for openmp 
 pu_openmp()
-
-# #check for cuda 
-# pu_cuda()
-
-# # check for rocm 
-# pu_rocm()
+# check for cuda 
+pu_cuda()
+# check for hip
+pu_hip()
 
 # set the paths for building
 set(PU_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -37,3 +38,4 @@ set(PU_SOURCE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/src")
 include_directories(${PU_INCLUDE_DIRS})
 include_directories(${PU_SOURCE_DIRS})
 add_subdirectory(${PU_SOURCE_DIRS})
+
