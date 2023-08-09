@@ -18,6 +18,7 @@ pu_option(ENABLE_OPENMP "Enable OpenMP" ON)
 pu_option(ENABLE_CUDA "Enable CUDA" OFF)
 pu_option(ENABLE_HIP "Enable HIP" OFF)
 pu_option(ENABLE_HIP_AMD "Enable HIP with AMD (ROCM)" ON)
+pu_option(PU_ENABLE_SHARED_LIB "Enable shared library" ON)
 
 if ((PU_ENABLE_HIP) AND (PU_ENABLE_CUDA))
    message(FATAL_ERROR "Build conflict: Requesting both CUDA and HIP. Must have one or the other")
@@ -31,6 +32,8 @@ pu_openmp()
 pu_cuda()
 # check for hip
 pu_hip()
+
+add_compile_options(-Wall -Wextra -Wpedantic -fPIC)
 
 # set the paths for building
 set(PU_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include")
