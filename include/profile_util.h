@@ -190,8 +190,8 @@ namespace profiling_util {
             std::size_t _val;
         };
 
-        struct _microseconds_amount {
-            std::chrono::microseconds::rep _val;
+        struct _nanoseconds_amount {
+            std::chrono::nanoseconds::rep _val;
         };
 
         template <typename T>
@@ -235,21 +235,30 @@ namespace profiling_util {
 
         template <typename T>
         inline
-        std::basic_ostream<T> &operator<<(std::basic_ostream<T> &os, const detail::_microseconds_amount &t)
+        std::basic_ostream<T> &operator<<(std::basic_ostream<T> &os, const detail::_nanoseconds_amount &t)
         {
             auto time = t._val;
+	    float ftime = time;
             if (time < 1000) {
+                os << time << " [ns]";
+                return os;
+            }    
+	    
+	    ftime = time/1000.f;
+	    time /= 1000;
+	    if (time < 1000) {
                 os << time << " [us]";
                 return os;
             }
 
+            ftime = time / 1000.f;
             time /= 1000;
             if (time < 1000) {
                 os << time << " [ms]";
                 return os;
             }
 
-            float ftime = time / 1000.f;
+            ftime = time / 1000.f;
             const char *prefix = " [s]";
             if (ftime > 60) {
                 ftime /= 60;
@@ -289,7 +298,7 @@ namespace profiling_util {
     /// @param v The value to send to the stream
     ///
     inline
-    detail::_microseconds_amount us_time(std::chrono::microseconds::rep amount) {
+    detail::_nanoseconds_amount ns_time(std::chrono::nanoseconds::rep amount) {
         return {amount};
     }
 
@@ -373,7 +382,7 @@ namespace profiling_util {
     public:
 
         using clock = std::chrono::high_resolution_clock;
-        using duration = typename std::chrono::microseconds::rep;
+        using duration = typename std::chrono::nanoseconds::rep;
         
 
         /*!
@@ -391,7 +400,7 @@ namespace profiling_util {
          */
         inline
         duration get() const {
-            return std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - tref).count();
+            return std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() - tref).count();
         }
 
         /*!
@@ -402,14 +411,14 @@ namespace profiling_util {
          */
         inline
         duration get_creation() const {
-            return std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - t0).count();
+            return std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() - t0).count();
         }
 
         /*!
          * Returns the elapsed time on device since the reference time
          * of the device event
          *
-         * @return The time elapsed since the creation of the timer, in [us]
+         * @return The time elapsed since the creation of the timer, in [ns]
          */
 #if defined(_GPU)
         inline
@@ -422,7 +431,7 @@ namespace profiling_util {
             pu_gpuErrorCheck(pu_gpuEventSynchronize(t1_event));
             float telapsed;
             pu_gpuErrorCheck(pu_gpuEventElapsedTime(&telapsed,t0_event,t1_event));
-            telapsed *= _GPU_TO_SECONDS; // to convert to seconds 
+            telapsed *= _GPU_TO_SECONDS * 1e9; // to convert to seconds 
             pu_gpuErrorCheck(pu_gpuEventDestroy(t1_event));
             return telapsed;
         }
