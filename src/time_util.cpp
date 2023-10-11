@@ -40,13 +40,11 @@ namespace profiling_util {
     {
         std::string new_ref = "@"+function+" L"+line_num;
         std::ostringstream report;
-        if (t.get_use_device()) {
-            report << t.get_device_swap_info();
-            report << "Time taken on device between : " << new_ref << " - " << t.get_ref() << " : " << ns_time(t.get_on_device());
-        }
-        else {
-            report << "NO DEVICE to measure : " << new_ref << " - " << t.get_ref() << " : " << ns_time(t.get_on_device());
-        }
+        if (t.get_use_device()) report << "Time taken on device between : " ;
+        else report << "NO DEVICE to measure : ";
+        auto ns = ns_time(t.get_on_device());
+        report << t.get_device_swap_info();
+        report << new_ref << " - " << t.get_ref() << " : " << ns;
         return report.str();
     }
 
