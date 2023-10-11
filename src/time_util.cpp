@@ -14,7 +14,7 @@ namespace profiling_util {
     }
 
     std::string ReportTimeTaken(
-        const Timer &t, 
+        Timer &t, 
         const std::string &function, 
         const std::string &line_num)
     {
@@ -25,7 +25,7 @@ namespace profiling_util {
     }
 
     float GetTimeTaken(
-        const Timer &t, 
+        Timer &t, 
         const std::string &function, 
         const std::string &line_num)
     {
@@ -34,13 +34,14 @@ namespace profiling_util {
 
 #if defined(_GPU)
     std::string ReportTimeTakenOnDevice(
-        const Timer &t, 
+        Timer &t, 
         const std::string &function, 
         const std::string &line_num)
     {
         std::string new_ref = "@"+function+" L"+line_num;
         std::ostringstream report;
         if (t.get_use_device()) {
+            report << t.get_device_swap_info();
             report << "Time taken on device between : " << new_ref << " - " << t.get_ref() << " : " << ns_time(t.get_on_device());
         }
         else {
@@ -50,7 +51,7 @@ namespace profiling_util {
     }
 
     float GetTimeTakenOnDevice(
-        const Timer &t, 
+        Timer &t, 
         const std::string &function, 
         const std::string &line_num)
     {

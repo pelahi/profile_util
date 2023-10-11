@@ -67,6 +67,7 @@
 #define pu_gpuErr hipErr
 #define pu_gpuSuccess hipSuccess
 #define pu_gpuGetDeviceCount hipGetDeviceCount
+#define pu_gpuGetDevice hipGetDevice
 #define pu_gpuDeviceProp_t hipDeviceProp_t
 #define pu_gpuSetDevice hipSetDevice
 #define pu_gpuGetDeviceProperties hipGetDeviceProperties
@@ -74,6 +75,7 @@
 #define pu_gpuDeviceReset hipDeviceReset
 #define pu_gpuLaunchKernel(...) hipLaunchKernelGGL(__VA_ARGS__)
 
+#define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
 #endif
 
 #ifdef _CUDA
@@ -95,6 +97,7 @@
 #define pu_gpuErr cudaErr
 #define pu_gpuSuccess cudaSuccess
 #define pu_gpuGetDeviceCount cudaGetDeviceCount
+#define pu_gpuGetDeviceCount cudaGetDevice
 #define pu_gpuDeviceProp_t cudaDeviceProp_t
 #define pu_gpuSetDevice cudaSetDevice
 #define pu_gpuGetDeviceProperties cudaGetDeviceProperties
@@ -102,6 +105,7 @@
 #define pu_gpuDeviceReset cudaDeviceReset
 #define pu_gpuLaunchKernel cudaLaunchKernel
 
+#define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
 
 #endif
 
@@ -421,18 +425,37 @@ namespace profiling_util {
          * @return The time elapsed since the creation of the timer, in [ns]
          */
 #if defined(_GPU)
+        inline int get_ref_device() {
+            int cur_device_id;
+            pu_gpuErrorCheck(pu_gpuGetDevice(&cur_device_id));
+            std::cout<<__func__<<":"<<__LINE__<<" "<<device_id<<" "<<cur_device_id<<std::endl;
+            if (cur_device_id != device_id) {
+                swap_device = true;
+                other_device_id = cur_device_id;
+                pu_gpuSetDevice(device_id);
+//                pu_gpuErrorCheck(pu_gpuSetDevice(device_id));
+            }
+
+        };
+        inline void set_cur_device(int cur_device_id)  {
+            if (cur_device_id != device_id) {
+                pu_gpuErrorCheck(pu_gpuSetDevice(cur_device_id));
+            }
+        };
         inline
-        float get_on_device() const 
+        float get_on_device()  
         {
             if (!use_device) return 0;
+            int cur_device_id = get_ref_device();
             pu_gpuEvent_t t1_event;
             pu_gpuErrorCheck(pu_gpuEventCreate(&t1_event));
             pu_gpuErrorCheck(pu_gpuEventRecord(t1_event)); 
             pu_gpuErrorCheck(pu_gpuEventSynchronize(t1_event));
             float telapsed;
             pu_gpuErrorCheck(pu_gpuEventElapsedTime(&telapsed,t0_event,t1_event));
-            telapsed *= _GPU_TO_SECONDS * 1e9; // to convert to seconds 
+            telapsed *= _GPU_TO_SECONDS; // to convert to seconds 
             pu_gpuErrorCheck(pu_gpuEventDestroy(t1_event));
+            set_cur_device(cur_device_id);
             return telapsed;
         }
 #endif
@@ -443,6 +466,9 @@ namespace profiling_util {
             t0 = clock::now();
 #if defined(_GPU)
             if (use_device) {
+                pu_gpuErrorCheck(pu_gpuEventDestroy(t0_event));
+                pu_gpuErrorCheck(pu_gpuGetDevice(&device_id));
+                pu_gpuErrorCheck(pu_gpuEventCreate(&t0_event));
                 pu_gpuErrorCheck(pu_gpuEventRecord(t0_event)); 
                 pu_gpuErrorCheck(pu_gpuEventSynchronize(t0_event));
             }
@@ -452,6 +478,15 @@ namespace profiling_util {
         {
             return ref;
         };
+#if defined(_GPU)
+        std::string get_device_swap_info()
+        {
+            if (swap_device) {
+                return "WARNING: Device swapped during timing: currently on "+ std::to_string(other_device_id) + " but measuring on " + std::to_string(device_id) + " : ";
+            }
+            else return "";
+        };
+#endif
 
         Timer(const std::string &f, const std::string &l, bool _use_device=true) {
             ref="@"+f+" L"+l;
@@ -459,7 +494,11 @@ namespace profiling_util {
             tref = t0;
             use_device = _use_device;
 #if defined(_GPU)
+            int ndevices;
+            pu_gpuErrorCheck(pu_gpuGetDeviceCount(&ndevices));
+            if (ndevices == 0) use_device = false;
             if (use_device) {
+                pu_gpuErrorCheck(pu_gpuGetDevice(&device_id));
                 pu_gpuErrorCheck(pu_gpuEventCreate(&t0_event));
                 pu_gpuErrorCheck(pu_gpuEventRecord(t0_event)); 
                 pu_gpuErrorCheck(pu_gpuEventSynchronize(t0_event));
@@ -480,17 +519,21 @@ namespace profiling_util {
         bool use_device = true;
 #if defined(_GPU)
         pu_gpuEvent_t t0_event;
+        // store the device on which event is recorded
+        // and whether timer called on another device
+        int device_id, other_device_id;
+        bool swap_device = false;
 #endif
     };
 
     /// get the time taken between some reference time (which defaults to creation of timer )
     /// and current call
-    std::string ReportTimeTaken(const Timer &t, const std::string &f, const std::string &l);
-    float GetTimeTaken(const Timer &t, const std::string &f, const std::string &l);
+    std::string ReportTimeTaken(Timer &t, const std::string &f, const std::string &l);
+    float GetTimeTaken(Timer &t, const std::string &f, const std::string &l);
 
 #if defined(_GPU)
-    std::string ReportTimeTakenOnDevice(const Timer &t, const std::string &f, const std::string &l);
-    float GetTimeTakenOnDevice(const Timer &t, const std::string &f, const std::string &l);
+    std::string ReportTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &l);
+    float GetTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &l);
 #endif
 }
 
