@@ -93,12 +93,13 @@
 #define pu_gpuEventSynchronize cudaEventSynchronize
 #define pu_gpuEventElapsedTime cudaEventElapsedTime
 #define pu_gpuDeviceSynchronize cudaDeviceSynchronize
+#define pu_gpuGetErrorString cudaGetErrorString
 #define pu_gpuError_t cudaError_t
 #define pu_gpuErr cudaErr
 #define pu_gpuSuccess cudaSuccess
 #define pu_gpuGetDeviceCount cudaGetDeviceCount
-#define pu_gpuGetDeviceCount cudaGetDevice
-#define pu_gpuDeviceProp_t cudaDeviceProp_t
+#define pu_gpuGetDevice cudaGetDevice
+#define pu_gpuDeviceProp_t cudaDeviceProp
 #define pu_gpuSetDevice cudaSetDevice
 #define pu_gpuGetDeviceProperties cudaGetDeviceProperties
 #define pu_gpuDeviceGetPCIBusId cudaDeviceGetPCIBusId

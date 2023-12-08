@@ -5,7 +5,7 @@ MPICXX=CC
 if [ ! -z $1 ]; then
     CXX=$1
 fi
-if [ ! -z $2]; then
+if [ ! -z $2 ]; then
     MPICXX=$2
 fi
 
