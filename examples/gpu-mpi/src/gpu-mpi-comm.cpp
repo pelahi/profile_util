@@ -765,7 +765,6 @@ void MPITestGPUCorrectSendRecv(Options &opt){
         for (auto idev=0; idev<nDevices;idev++) {
             pu_gpuErrorCheck(pu_gpuSetDevice(idev));
             p1 = gpu_p1[idev];
-            p2 = gpu_p2[idev];
             Rank0LocalLogger()<<"Communicating using device "<<idev<<std::endl;
             if (ThisTask == opt.roottask) {
                 for (auto itask = 0;itask<NProcs;itask++) {
