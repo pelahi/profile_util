@@ -74,6 +74,7 @@
 #define pu_gpuDeviceGetPCIBusId hipDeviceGetPCIBusId
 #define pu_gpuDeviceReset hipDeviceReset
 #define pu_gpuLaunchKernel(...) hipLaunchKernelGGL(__VA_ARGS__)
+#define pu_gpuStream_t hipStream_t
 
 #define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
 #endif
@@ -104,7 +105,9 @@
 #define pu_gpuGetDeviceProperties cudaGetDeviceProperties
 #define pu_gpuDeviceGetPCIBusId cudaDeviceGetPCIBusId
 #define pu_gpuDeviceReset cudaDeviceReset
-#define pu_gpuLaunchKernel cudaLaunchKernel
+#define pu_gpuLaunchKernel(kernelfunc, blksize, threadsperblk, shsize, stream, ...) \
+kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
+#define pu_gpuStream_t cudaStream_t
 
 #define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
 

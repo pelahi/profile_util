@@ -13,6 +13,9 @@
 #include <omp.h>
 #endif
 
+// char wherebuff[1000];
+// std::string whenbuff;
+
 template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
 {
     std::vector<T> v(N);
@@ -74,7 +77,7 @@ void allocate_mem_host(unsigned long long Nentries,
     std::vector<double> &x_double, std::vector<double> &y_double) 
 {
     auto time_mem = NewTimerHostOnly();
-    std::cout<<"Allocation on host with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
+    Log()<<"Allocation on host with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
     x_int.resize(Nentries);
     y_int.resize(Nentries);
     x_float.resize(Nentries);
@@ -232,6 +235,45 @@ void deallocate_mem_gpu(
     LogTimeTaken(time_mem);
 }
 
+void compute_kernel1(size_t N, 
+    std::vector<int*> &x_int_gpu, 
+    std::vector<int*> &y_int_gpu, 
+    std::vector<float*> &x_float_gpu, 
+    std::vector<float*> &y_float_gpu, 
+    std::vector<double*> &x_double_gpu, 
+    std::vector<double*> &y_double_gpu,
+    size_t blocksize = 256, 
+    size_t threadsperblock = 1024,
+    int Niter = 1
+    )
+{
+    int nDevices;
+    size_t dynsharedsize = 0;
+    pu_gpuStream_t stream = 0;
+    pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
+    for (auto idev=0;idev<nDevices;idev++) {
+        Log()<<" at device "<<idev<<" and doing stuff "<<std::endl;
+        pu_gpuErrorCheck(pu_gpuSetDevice(idev));
+        auto time_kernel = NewTimer();
+        for (auto i=0; i<Niter;i++) {
+            pu_gpuLaunchKernel(vector_square, 
+                dim3(blocksize), dim3(threadsperblock), 
+                dynsharedsize, stream,
+                x_int_gpu[idev], y_int_gpu[idev], N);
+            pu_gpuLaunchKernel(vector_square, 
+                dim3(blocksize), dim3(threadsperblock), 
+                dynsharedsize, stream,
+                x_float_gpu[idev], y_float_gpu[idev], N);
+            pu_gpuLaunchKernel(vector_square, 
+                dim3(blocksize), dim3(threadsperblock), 
+                dynsharedsize, stream,
+                x_double_gpu[idev], y_double_gpu[idev], N);
+        }
+        LogTimeTakenOnDevice(time_kernel);
+    }
+}
+
+
 void reset_gpu() 
 {
     auto time_mem = NewTimerHostOnly();
@@ -256,7 +298,7 @@ int main(int argc, char **argv) {
     std::vector<int*> x_int_gpu, y_int_gpu;
     std::vector<float*> x_float_gpu, y_float_gpu;
     std::vector<double*> x_double_gpu, y_double_gpu;
-    if (argc == 2) Nentries = atoi(argv[1]);
+    if (argc == 2) Nentries = atol(argv[1]);
 
     //allocate, test vectorization and deallocate
     //functions showcase use of logging time taken and mem usage
