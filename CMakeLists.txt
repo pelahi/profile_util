@@ -26,12 +26,12 @@ endif()
 
 # check for MPI 
 pu_mpi()
-# check for openmp 
-pu_openmp()
 # check for cuda 
 pu_cuda()
 # check for hip
 pu_hip()
+# check for openmp 
+pu_openmp()
 
 add_compile_options(-Wall -Wextra -Wpedantic -fPIC)
 
