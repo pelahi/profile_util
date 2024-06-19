@@ -3,17 +3,18 @@
 LIBDIR=$(shell pwd)/../../lib/
 INCDIR=$(shell pwd)/../../include/
 
-#CXX=hipcc
-#ARCH=gfx90a
-CXX=nvc++
-ARCH=unified
+CXX=hipcc
+ARCH=gfx90a
+#CXX=nvc++
+#ARCH=unified
 #CXX=nvc++
 
 
 ifeq ($(CXX), hipcc)
 GPUFLAGS=-D_HIP -D__HIP_PLATFORM_AMD__ 
 LIB=-lprofile_util_hip_omp
-OMPFLAGS=-DUSEOPENMP -fopenmp --offload-arch=$(ARCH) -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=$(ARCH)
+#OMPFLAGS=-DUSEOPENMP -fopenmp --offload-arch=$(ARCH) -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=$(ARCH)
+OMPFLAGS=-DUSEOPENMP -fopenmp --offload-arch=$(ARCH)
 FLAGS=-std=c++14 -fPIC -I$(INCDIR) 
 LFLAGS=-L$(LIBDIR)  -Wl,-rpath=$(LIBDIR)
 endif

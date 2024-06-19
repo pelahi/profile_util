@@ -573,8 +573,13 @@ namespace profiling_util {
 #define Logger(logger) logger<<_log_header
 #define Log() std::cout<<_log_header
 #define LogErr() std::cerr<<_log_header
+
 #ifdef _OPENMP
+#ifdef _MPI 
 #define LOGGING() shared(profiling_util::__comm, profiling_util::__comm_rank, std::cout)
+#else 
+#define LOGGING() shared(std::cout)
+#endif
 #endif
 //@}
 
