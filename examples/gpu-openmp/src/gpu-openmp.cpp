@@ -13,9 +13,6 @@
 #include <omp.h>
 #endif
 
-// char wherebuff[1000];
-// std::string whenbuff;
-
 template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
 {
     std::vector<T> v(N);
@@ -44,7 +41,7 @@ template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
 template<class T> T vector_sq_and_sum_cpu(std::vector<T> &v)
 {
     T sum = 0;
-    auto t1 = NewTimer();
+    auto t1 = NewTimerHostOnly();
     #pragma omp parallel \
     default(none) shared(v,sum) LOGGING() \
     if (v.size()>1000)
@@ -59,7 +56,7 @@ template<class T> T vector_sq_and_sum_cpu(std::vector<T> &v)
         }
     }
     LogTimeTaken(t1);
-    t1 = NewTimer();
+    t1 = NewTimerHostOnly();
     T sum_serial = 0;
     for (auto &x:v) 
     {
@@ -69,6 +66,36 @@ template<class T> T vector_sq_and_sum_cpu(std::vector<T> &v)
     Log()<<v.size()<<" omp reduction "<<sum<<" serial sum  "<<sum_serial<<std::endl;
     return sum;
 }
+
+#ifdef OMP_GPU_OFFLOAD
+template<class T> T vector_sq_and_sum_gpu(std::vector<T> &v)
+{
+    T sum = 0;
+    auto t1 = NewTimer();
+    auto data = v.data();
+    auto vsize = v.size();
+    #pragma omp target data map(tofrom : sum, data[:vsize]) map(to : vsize) 
+    {
+        #pragma omp target teams distribute parallel for \
+        reduction(+:sum)
+        for (auto i=0;i<vsize;i++)
+        {
+            auto x = data[i];
+            sum += x*x;
+        }
+    }
+    LogTimeTaken(t1);
+    auto t2 = NewTimer();
+    T sum_serial = 0;
+    for (auto &x:v) 
+    {
+        sum_serial += x*x;
+    }
+    LogTimeTaken(t2);
+    Log()<<v.size()<<" omp reduction "<<sum<<" serial sum  "<<sum_serial<<std::endl;
+    return sum;
+}
+#endif 
 
 // allocate mem and logs time taken and memory usage
 void allocate_mem_host(unsigned long long Nentries, 
@@ -84,6 +111,11 @@ void allocate_mem_host(unsigned long long Nentries,
     y_float.resize(Nentries);
     x_double.resize(Nentries);
     y_double.resize(Nentries);
+    for (auto i=0;i<Nentries;i++) {
+        x_int[i] = i;
+        x_float[i] = 0.5*i;
+        x_double[i] = 0.25*i;
+    }
     LogMemUsage();
     LogTimeTaken(time_mem);
 }
@@ -278,11 +310,13 @@ int main(int argc, char **argv) {
     std::vector<int> x_int, y_int;
     std::vector<float> x_float, y_float;
     std::vector<double> x_double, y_double;
+    int Niter = 1;
     unsigned long long Nentries = 24.0*1024.0*1024.0*1024.0/8.0/6.0;
     std::vector<int*> x_int_gpu, y_int_gpu;
     std::vector<float*> x_float_gpu, y_float_gpu;
     std::vector<double*> x_double_gpu, y_double_gpu;
-    if (argc == 2) Nentries = atol(argv[1]);
+    if (argc >= 2) Nentries = atol(argv[1]);
+    if (argc == 3) Niter = atoi(argv[2]);
 
     //allocate, test vectorization and deallocate
     //functions showcase use of logging time taken and mem usage
@@ -295,7 +329,7 @@ int main(int argc, char **argv) {
         x_int_gpu, y_int_gpu, 
         x_float_gpu, y_float_gpu, 
         x_double_gpu, y_double_gpu);
-    compute_kernel1(Nentries, x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu);
+    compute_kernel1(Nentries, x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu, Niter);
     transfer_from_gpu(Nentries, 
         x_int, y_int, 
         x_float, y_float, 
@@ -303,7 +337,16 @@ int main(int argc, char **argv) {
         x_int_gpu, y_int_gpu, 
         x_float_gpu, y_float_gpu, 
         x_double_gpu, y_double_gpu);
+    vector_sq_and_sum_cpu(x_int);
+    vector_sq_and_sum_cpu(x_float);
+    vector_sq_and_sum_cpu(x_double);
+#ifdef OMP_GPU_OFFLOAD
+    vector_sq_and_sum_gpu(x_int);
+    vector_sq_and_sum_gpu(x_float);
+    vector_sq_and_sum_gpu(x_double);
+#endif
     deallocate_mem_host(x_int, y_int, x_float, y_float, x_double, y_double);
     deallocate_mem_gpu(x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu);
     reset_gpu();
+    
 }
