@@ -12,6 +12,7 @@ fi
 #MPIFLAGS=$(mpic++ --showme | sed "s:nvcc ::g" | sed "s:-Wl,-rpath:-Xcompiler -Wl,-rpath:g" | sed "s:-Wl,:-Xcompiler -Wl,:g" )
 
 devicetype=cuda
+OMPFLAGS=-mp
 # first is serial
 buildtypes=("CUDA Serial" "CUDA OpenMP" "CUDA MPI" "CUDA MPI+OpenMP")
 buildnames=("_cuda" "_cuda_omp" "_cuda_mpi" "_cuda_mpi_omp")

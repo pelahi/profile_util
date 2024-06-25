@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-CXX=CC
-MPICXX=CC
+CXX=g++
+MPICXX=mpic++
 if [ ! -z $1 ]; then
     CXX=$1
 fi

@@ -95,7 +95,8 @@ void allocate_mem_gpu(unsigned long long Nentries,
     std::vector<float*> &x_float, 
     std::vector<float*> &y_float, 
     std::vector<double*> &x_double, 
-    std::vector<double*> &y_double) 
+    std::vector<double*> &y_double
+    ) 
 {
     auto time_mem = NewTimerHostOnly();
     Log()<<"Allocating on GPU running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
@@ -111,6 +112,7 @@ void allocate_mem_gpu(unsigned long long Nentries,
     for (auto idev=0;idev<nDevices;idev++) {
         pu_gpuErrorCheck(pu_gpuSetDevice(idev));
         auto time_local = NewTimer();
+#ifndef GPU_UNIFIED
         nbytes = Nentries * sizeof(int);
         pu_gpuErrorCheck(pu_gpuMalloc(&x_int[idev], nbytes));
         pu_gpuErrorCheck(pu_gpuMalloc(&y_int[idev], nbytes));
@@ -120,6 +122,7 @@ void allocate_mem_gpu(unsigned long long Nentries,
         nbytes = Nentries * sizeof(double);
         pu_gpuErrorCheck(pu_gpuMalloc(&x_double[idev], nbytes));
         pu_gpuErrorCheck(pu_gpuMalloc(&y_double[idev], nbytes));
+#endif
         pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
         LogTimeTakenOnDevice(time_local);
     }
@@ -145,6 +148,14 @@ void transfer_to_gpu(unsigned long long Nentries,
     pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
     for (auto idev=0;idev<nDevices;idev++) {
         pu_gpuErrorCheck(pu_gpuSetDevice(idev));
+#ifdef GPU_UNIFIED
+        x_int_gpu[idev] = x_int.data();
+        y_int_gpu[idev] = y_int.data();
+        x_float_gpu[idev] = x_float.data();
+        y_float_gpu[idev] = y_float.data();
+        x_double_gpu[idev] = x_double.data();
+        y_double_gpu[idev] = y_double.data();
+#else 
         nbytes = Nentries * sizeof(int);
         pu_gpuErrorCheck(pu_gpuMemcpy(x_int_gpu[idev], x_int.data(), nbytes, pu_gpuMemcpyHostToDevice));
         pu_gpuErrorCheck(pu_gpuMemcpy(y_int_gpu[idev], y_int.data(), nbytes, pu_gpuMemcpyHostToDevice));
@@ -154,6 +165,7 @@ void transfer_to_gpu(unsigned long long Nentries,
         nbytes = Nentries * sizeof(double);
         pu_gpuErrorCheck(pu_gpuMemcpy(x_double_gpu[idev], x_double.data(), nbytes, pu_gpuMemcpyHostToDevice));
         pu_gpuErrorCheck(pu_gpuMemcpy(y_double_gpu[idev], y_double.data(), nbytes, pu_gpuMemcpyHostToDevice));
+#endif
     }
     LogTimeTaken(time_mem);
 }
@@ -176,6 +188,7 @@ void transfer_from_gpu(unsigned long long Nentries,
     pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
     for (auto idev=0;idev<nDevices;idev++) {
         pu_gpuErrorCheck(pu_gpuSetDevice(idev));
+#ifndef GPU_UNIFIED
         auto nbytes = Nentries * sizeof(int);
         pu_gpuErrorCheck(pu_gpuMemcpy(&x_int.data()[0], x_int_gpu[idev], nbytes, pu_gpuMemcpyDeviceToHost));
         pu_gpuErrorCheck(pu_gpuMemcpy(&y_int.data()[0], y_int_gpu[idev], nbytes, pu_gpuMemcpyDeviceToHost));
@@ -185,6 +198,7 @@ void transfer_from_gpu(unsigned long long Nentries,
         nbytes = Nentries * sizeof(double);
         pu_gpuErrorCheck(pu_gpuMemcpy(&x_double.data()[0], x_double_gpu[idev], nbytes, pu_gpuMemcpyDeviceToHost));
         pu_gpuErrorCheck(pu_gpuMemcpy(&y_double.data()[0], y_double_gpu[idev], nbytes, pu_gpuMemcpyDeviceToHost));
+#endif
     }
     LogTimeTaken(time_mem);
 }
@@ -225,12 +239,21 @@ void deallocate_mem_gpu(
     pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
     for (auto idev=0;idev<nDevices;idev++) {
         pu_gpuErrorCheck(pu_gpuSetDevice(idev));
+#ifdef GPU_UNIFIED
+        x_int[idev] = nullptr;
+        y_int[idev] = nullptr;
+        x_float[idev] = nullptr;
+        y_float[idev] = nullptr;
+        x_double[idev] = nullptr;
+        y_double[idev] = nullptr;
+#else
         pu_gpuErrorCheck(pu_gpuFree(x_int[idev]));
         pu_gpuErrorCheck(pu_gpuFree(y_int[idev]));
         pu_gpuErrorCheck(pu_gpuFree(x_float[idev]));
         pu_gpuErrorCheck(pu_gpuFree(y_float[idev]));
         pu_gpuErrorCheck(pu_gpuFree(x_double[idev]));
         pu_gpuErrorCheck(pu_gpuFree(y_double[idev]));
+#endif
     }
     LogTimeTaken(time_mem);
 }

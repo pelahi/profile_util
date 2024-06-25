@@ -3,10 +3,10 @@
 LIBDIR=$(shell pwd)/../../lib/
 INCDIR=$(shell pwd)/../../include/
 
-CXX=hipcc
-ARCH=gfx90a
-#CXX=nvc++
-#ARCH=unified
+#CXX=hipcc
+#ARCH=gfx90a
+CXX=nvc++
+ARCH=unified
 #CXX=nvc++
 
 
@@ -23,7 +23,10 @@ ifeq ($(CXX), nvc++)
 GPUFLAGS=-D_CUDA
 LIB=-lprofile_util_cuda_omp
 OMPFLAGS=-mp
-FLAGS=-std=c++14 -fPIC -I$(INCDIR) -cuda -gpu=$(ARCH)
+FLAGS=-std=c++14 -fPIC -I$(INCDIR) -cuda -gpu=$(ARCH) 
+ifeq ($(ARCH), unified)
+#FLAGS+=-DGPU_UNIFIED
+endif
 LFLAGS=-L$(LIBDIR) -Wl,-rpath=$(LIBDIR)
 endif 
 

@@ -9,11 +9,12 @@ INCDIR=$(shell pwd)/../../include/
 # CRAY=true
 
 GPU=nvidia
-MPICXX=nvc++
+CXX=nvc++
 ARCH=unified
 CRAY=false
 
-ifeq ($(MPICXX), hipcc)
+ifeq ($(CXX), hipcc)
+MPICXX=hipcc
 GPUFLAGS=-D_HIP -D__HIP_PLATFORM_AMD__ 
 LIB=-lprofile_util_hip_mpi_omp -lmpi
 ifeq ($(CRAY),true)
@@ -26,21 +27,14 @@ LFLAGS=-L$(LIBDIR) -Wl,-rpath=$(LIBDIR)
 FLAGS=-std=c++17 -fPIC -D_MPI -I$(INCDIR) 
 endif
 
-ifeq ($(MPICXX), nvc++)
+ifeq ($(CXX), nvc++)
+MPICXX=mpic++
 GPUFLAGS=-D_CUDA
 OMPFLAGS=-mp
 LIB=-lprofile_util_cuda_mpi_omp -lmpi #-lmpi_cxx
 LFLAGS=-L$(LIBDIR) -Wl,-rpath=$(LIBDIR)
 FLAGS=-std=c++17 -fPIC -D_MPI -I$(INCDIR) -cuda -gpu=$(ARCH) 
 endif 
-
-ifeq ($(MPICXX), nvcc)
-GPUFLAGS=-D_CUDA
-LIB=-lprofile_util_cuda_mpi_omp -lmpi
-OMPFLAGS=-mp
-LFLAGS=-L$(LIBDIR) -Xcompiler -Wl,-rpath=$(LIBDIR)
-FLAGS=-Xcompiler -std=c++17 -Xcompiler -fPIC -D_MPI -I$(INCDIR) -cuda -gpu=$(ARCH) 
-endif
 
 
 all: bin/gpu-mpi-comm
