@@ -24,9 +24,9 @@ void compute_kernel1(size_t N,
     std::vector<float*> &y_float_gpu, 
     std::vector<double*> &x_double_gpu, 
     std::vector<double*> &y_double_gpu,
+    int Niter = 1,
     size_t blocksize = 256,
-    size_t threadsperblock = 1024,
-    int Niter = 1
+    size_t threadsperblock = 1024
     );
 //@}
 #endif

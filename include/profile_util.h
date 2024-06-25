@@ -33,6 +33,7 @@
 #define _GPU_API "HIP"
 #define _GPU_TO_SECONDS 1.0/1000.0
 #include <hip/hip_runtime.h>
+// #include <hip>
 #endif
 
 #ifdef _CUDA
@@ -75,6 +76,7 @@
 #define pu_gpuDeviceReset hipDeviceReset
 #define pu_gpuLaunchKernel(...) hipLaunchKernelGGL(__VA_ARGS__)
 #define pu_gpuStream_t hipStream_t
+#define pu_gpuPeekAtLastError hipPeekAtLastError
 
 #define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
 #endif
@@ -108,6 +110,7 @@
 #define pu_gpuLaunchKernel(kernelfunc, blksize, threadsperblk, shsize, stream, ...) \
 kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
 #define pu_gpuStream_t cudaStream_t
+#define pu_gpuPeekAtLastError cudaPeekAtLastError
 
 #define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
 
@@ -123,6 +126,9 @@ do{                                                                             
         exit(0);                                                                            \
     }                                                                                       \
 }while(0)
+
+#define pu_gpuCheckLastKernel() {pu_gpuErrorCheck(pu_gpuPeekAtLastError()); \
+pu_gpuErrorCheck(pu_gpuDeviceSynchronize());}
 
 #endif
 //@}
