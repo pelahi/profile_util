@@ -52,6 +52,7 @@
 #ifdef _HIP
 #define pu_gpuMalloc hipMalloc
 #define pu_gpuHostMalloc hipHostMalloc
+#define pu_gpuMallocManaged hipMallocManaged
 #define pu_gpuFree hipFree
 #define pu_gpuMemcpy hipMemcpy
 #define pu_gpuMemcpyHostToDevice hipMemcpyHostToDevice
@@ -77,6 +78,7 @@
 #define pu_gpuLaunchKernel(...) hipLaunchKernelGGL(__VA_ARGS__)
 #define pu_gpuStream_t hipStream_t
 #define pu_gpuPeekAtLastError hipPeekAtLastError
+#define pu_gpuMemPrefetchAsync hipMemPrefetchAsync
 
 #define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
 #endif
@@ -85,6 +87,7 @@
 
 #define pu_gpuMalloc cudaMalloc
 #define pu_gpuHostMalloc cudaMallocHost
+#define pu_gpuMallocManaged cudaMallocManaged
 #define pu_gpuFree cudaFree
 #define pu_gpuMemcpy cudaMemcpy
 #define pu_gpuMemcpyHostToDevice cudaMemcpyHostToDevice
@@ -111,6 +114,7 @@
 kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
 #define pu_gpuStream_t cudaStream_t
 #define pu_gpuPeekAtLastError cudaPeekAtLastError
+#define pu_gpuMemPrefetchAsync cudaMemPrefetchAsync
 
 #define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
 
@@ -130,14 +134,111 @@ do{                                                                             
 #define pu_gpuCheckLastKernel() {pu_gpuErrorCheck(pu_gpuPeekAtLastError()); \
 pu_gpuErrorCheck(pu_gpuDeviceSynchronize());}
 
+#ifdef FOO
+namespace gpu_util
+{
+///@brief Allocator class for unified memory 
+/// This class is based on https://gist.github.com/CommitThis/1666517de32893e5dc4c441269f1029a
+template <typename T>
+class unified_alloc
+{
+public:
+    using value_type = T;
+    using pointer = value_type*;
+    using size_type = std::size_t;
+
+    unified_alloc() noexcept = default;
+
+    template <typename U>
+    unified_alloc(unified_alloc<U> const&) noexcept {}
+
+    auto allocate(size_type n, const void* = 0) -> value_type* {
+        value_type * tmp;
+        pu_gpuErrorCheck(pu_gpuMallocManaged((void**)&tmp, n * sizeof(T)));
+        return tmp;
+    }
+
+    auto deallocate(pointer p, size_type n) -> void {
+        if (p) {
+            pu_gpuErrorCheck(pu_gpuFree(p));
+        }
+    }
+};
+
+/* Equality operators */
+template <class T, class U>
+auto operator==(unified_alloc<T> const &, unified_alloc<U> const &) -> bool {
+    return true;
+}
+
+template <class T, class U>
+auto operator!=(unified_alloc<T> const &, unified_alloc<U> const &) -> bool {
+    return false;
+}
+
+/// Template alias for convenient creating of a vector backed by unified memory 
+template <typename T>
+using unified_vector = std::vector<T, unified_alloc<T>>;
+
+/*! Define a default type trait; any instantiation of this with a type will
+    contain a value of false:
+        is_unified<int>::value == false
+*/
+template<typename T>
+struct is_unified : std::false_type{};
+
+/*! A specialisation of the above type trait. If the passed in type is in
+    itself a template, and the inner type is our unified allocator, then
+    the trait type will contain a true value:
+        is_unified<std::vector<int>>::value == false
+        is_unified<profile_util::vector<int>>::value == true
+    Remembering that the actual signature for both the stdlib and our CUDA 
+    vector is something like:
+        vector<int, allocator<int>>
+*/
+template<template<typename, typename> typename Outer, typename Inner>
+struct is_unified<Outer<Inner, unified_alloc<Inner>>> : std::true_type{};
+
+
+/*!  A helper function that retrieves whether or not the passed in type is
+    contains a unified allocator inner type, without using the type traits
+    directly */
+template<typename T>
+constexpr static auto is_unified_v = is_unified<T>::value;
+
+
+/*! This uses template substitution to generate a function that only exists
+    for types that contain a unified allocator. If is_unified_v<T> is 
+    false, std::enable_if_t does not exist, the substitution will fail, and 
+    because it is not an error to have a failed substitution, the function
+    will simply not exist.
+    
+    get_current_device is a utility function that uses the CUDA API to get
+    the ID of the current device.
+*/
+template <typename T, typename = std::enable_if_t<is_unified_v<T>>>
+auto prefetch(T const & container,  pu_gpuStream_t stream = 0, 
+        int device = 0)
+{
+    using value_type = typename T::value_type;
+    auto p = container.data();
+    if (p) {
+        pu_gpuErrorCheck(pu_gpuMemPrefetchAsync(p, container.size() *
+            sizeof(value_type), device, stream));
+    }
+}
+}
+#endif
+
 #endif
 //@}
 
 namespace profiling_util {
-    #ifdef _MPI
+
+#ifdef _MPI
     extern MPI_Comm __comm;
     extern int __comm_rank;
-    #endif
+#endif
 
     /// function that returns a string of the time at when it is called. 
     std::string __when();
