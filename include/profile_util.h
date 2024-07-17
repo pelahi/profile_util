@@ -6,6 +6,7 @@
 #define _PROFILE_UTIL
 
 #include <cstring>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <tuple>
@@ -18,6 +19,9 @@
 #include <memory>
 #include <array>
 #include <algorithm>
+#include <thread>
+#include <condition_variable>
+#include <filesystem>
 
 #include <sched.h>
 #include <stdlib.h>
@@ -81,6 +85,11 @@
 #define pu_gpuMemPrefetchAsync hipMemPrefetchAsync
 
 #define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
+#define pu_gpuMonitorCmd "rocm-smi"
+#define pu_gpu_usage_request " --showuse "
+#define pu_gpu_energy_request " --showpower "
+#define pu_gpu_formating " --csv "
+
 #endif
 
 #ifdef _CUDA
@@ -117,6 +126,11 @@ kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
 #define pu_gpuMemPrefetchAsync cudaMemPrefetchAsync
 
 #define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
+#define pu_gpuMonitorCmd "nvidia-smi"
+// commands for querying gpu
+#define pu_gpu_energy_request " --query-gpu=power.draw "
+#define pu_gpu_usage_request " --query-gpu=utilization.gpu "
+#define pu_gpu_formating " --format=csv,noheader,nounits "
 
 #endif
 
@@ -265,7 +279,8 @@ namespace profiling_util {
     std::string MPIReportThreadAffinity(std::string func, std::string line, MPI_Comm &comm);
 #endif
 
-    /// run a command
+
+     /// run a command
     /// @param cmd string of command to run on system
     /// @return string of MPI comm rank and thread core affinity 
     std::string exec_sys_cmd(std::string cmd);
@@ -634,7 +649,7 @@ namespace profiling_util {
         }
 #endif
 
-    private:
+    protected:
         clock::time_point t0;
         clock::time_point tref;
         std::string ref;
@@ -656,6 +671,148 @@ namespace profiling_util {
 #if defined(_GPU)
     std::string ReportTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &l);
     float GetTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &l);
+#endif
+
+    /*
+    /// @brief Place a command using std::system and threads 
+    /// @param cmd command to place 
+    void _place_cmd(const std::string cmd);
+
+    /// @brief Place a command using std::system and threads 
+    /// @param cmd command to place 
+    /// @param sleep_time time to sleep between running command
+    void _place_long_lived_cmd(const std::string cmd, float sleep_time);
+    */
+
+    /// @brief get the ave, std, min, max of input vector
+    /// @param input input vector
+    template <typename T> std::tuple<T,T,T,T>get_stats(std::vector<T> input)
+    {
+        T ave = 0, std = 0, min = 0, max = 0;
+        if (input.size()>0) {
+            min = max = input[0];
+            for (auto &i:input) 
+            {
+                ave += i;
+                std += i*i;
+                min = std::min(i,min);
+                max = std::max(i,max);
+            }
+            auto n = static_cast<T>(input.size());
+            ave /= n;
+            if (n == 1) std = 0;
+            else std = sqrt(std-ave*ave*n)/(n-1.0);
+        }
+        return std::tie(ave, std, min, max);
+    }
+
+    /// StateSample class that gets the stats of utilisation/energy
+    /// from point of creation to requested reporting.
+    /// inherents public routines from Timer
+    class StateSampler: public profiling_util::Timer {
+
+    private:
+        // unique sample identifier
+        int id; 
+        /// process id
+        int pid = 0;
+        // time in seconds between samples
+        float sample_time = 1.0;
+        std::string cpu_energy_fname, cpu_usage_fname, cpu_freq_fname;
+        std::vector<std::thread>* threads = nullptr;
+        std::mutex mtx;
+        std::condition_variable cv;
+        bool stopFlag = false;
+        bool use_device = true;
+#ifdef _GPU
+        std::string gpu_energy_fname, gpu_usage_fname, gpu_freq_fname;
+#endif
+        
+        std::string _set_sampling(const std::string &cmd, const std::string &out)
+        {
+            // return std::string("while true; do " + cmd + " >> " + out +
+            // "; sleep " + std::to_string(sample_time/1000.0) + "; done;");
+            return std::string(cmd + " >> " + out);
+        }
+        void _launch();
+
+        /// @brief Place a command using std::system and threads 
+        /// @param cmd command to place 
+        void _place_cmd(const std::string cmd)
+        {
+            auto status = std::system(cmd.c_str());
+        }
+
+        /// @brief Place a command using std::system and threads 
+        /// @param cmd command to place 
+        /// @param sleep_time time to sleep between running command
+        void _place_long_lived_cmd(const std::string cmd, float sleep_time)
+        {
+            while (!stopFlag) 
+            {
+                auto status = std::system(cmd.c_str());
+                usleep(sleep_time);
+            }
+        }
+    public:
+        StateSampler(const std::string &f, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true);
+        ~StateSampler();
+        /// @brief pauses the sampling by joining threads
+        void Pause();
+        /// @brief restart the sampling by launching threads
+        void Restart();
+        /// @brief get file name store cpu usage info
+        /// @return filename
+        std::string GetCPUUsageFname(){return cpu_usage_fname;}
+        /// @brief get file name store cpu energy info
+        /// @return filename
+        std::string GetCPUEnergyFname(){return cpu_energy_fname;}
+#ifdef _GPU
+        /// @brief get file name store gpu usage info
+        /// @return filename
+        std::string GetGPUUsageFname(){return gpu_usage_fname;}
+        /// @brief get file name store gpu energy info
+        /// @return filename
+        std::string GetGPUEnergyFname(){return gpu_energy_fname;}
+#endif
+    };
+
+    /// @brief reports the statistics of CPU from start to current line
+    /// @param s sampler to use for reporting 
+    /// @param f function where called in code, useful to provide __func__ 
+    /// @param l code line number where called
+    /// @return string of CPU usage statistics
+    std::string ReportCPUUsage(StateSampler &s, const std::string &f, const std::string &l);
+#ifdef _GPU
+    /// @brief reports the statistics of GPU usage from start to current line
+    /// @param s sampler to use for reporting 
+    /// @param f function where called in code, useful to provide __func__ 
+    /// @param l code line number where called
+    /// @return string of GPU usage statistics
+    std::string ReportGPUUsage(StateSampler &s, const std::string &f, const std::string &l, int gpu_id = -1);
+    /// @brief reports the statistics of GPU energy from start to current line
+    /// @param s sampler to use for reporting 
+    /// @param f function where called in code, useful to provide __func__ 
+    /// @param l code line number where called
+    /// @return string of GPU energy statistics
+    std::string ReportGPUEnergy(StateSampler &s, const std::string &f, const std::string &l, int gpu_id = -1);
+
+    /// reports the current status of a GPU. Best with openmp to spawn a thread
+    /// that captures information while GPU is doing something. 
+    /// @param func function where called in code, useful to provide __func__ and __LINE
+    /// @param line code line number where called
+    /// @param gpu_id gpu device of interest. Default is -1 and gets all gpus
+    /// @return string of GPU energy, usage, etc
+    std::string ReportGPUStatus(std::string func, std::string line, int gpu_id = -1);
+#ifdef _MPI
+    /// MPI wrapper for reporting GPU status
+    /// @param func function where called in code, useful to provide __func__ and __LINE
+    /// @param line code line number where called
+    /// @param comm MPI communicator
+    /// @param gpu_id gpu device of interest. Default is -1 and gets all gpus
+    /// @return string of GPU energy, usage, etc
+    std::string MPIReportGPUStatus(std::string func, std::string line, MPI_Comm &comm, int gpu_id = -1);
+#endif
 #endif
 }
 
@@ -747,6 +904,30 @@ namespace profiling_util {
 #endif 
 #define NewTimer() profiling_util::Timer(__func__, std::to_string(__LINE__));
 #define NewTimerHostOnly() profiling_util::Timer(__func__, std::to_string(__LINE__), false);
+
+#define NewSampler(t) profiling_util::StateSampler(__func__, std::to_string(__LINE__), true, t);
+#define NewSamplerHostOnly(t) profiling_util::StateSampler(__func__, std::to_string(__LINE__), false, t);
+//@}
+
+/// \defgroup LogUsage
+/// Log usage statistics either to std or an ostream
+//@{
+#define LogCPUUsage(sampler) Log()<<profiling_util::ReportCPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerCPUUsage(logger,timer) Logger(logger)<<profiling_util::ReportCPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#ifdef _MPI
+#define MPILogCPUUsage(sampler) Log()<<profiling_util::ReportCPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define MPILoggerCPUUsage(logger,timer) Logger(logger)<<profiling_util::profiling_util::ReportCPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#endif 
+
+#ifdef _GPU
+#define LogGPUUsage(sampler) Log()<<profiling_util::ReportGPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerGPUUsage(logger,timer) Logger(logger)<<profiling_util::ReportGPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LogGPUEnergy(sampler) Log()<<profiling_util::ReportGPUEnergy(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerGPUEnergy(logger,timer) Logger(logger)<<profiling_util::ReportGPUEnergy(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#endif
+
+#define NewSampler(t) profiling_util::StateSampler(__func__, std::to_string(__LINE__), true, t);
+#define NewSamplerHostOnly(t) profiling_util::StateSampler(__func__, std::to_string(__LINE__), false, t);
 //@}
 
 /// \defgroup C_naming

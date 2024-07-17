@@ -11,6 +11,23 @@ namespace profiling_util {
         whenbuff.erase(std::find(whenbuff.begin(), whenbuff.end(), '\n'), whenbuff.end());
         return whenbuff;
     }
+    /*
+    void _place_cmd(const std::string cmd)
+    {
+        auto status = std::system(cmd.c_str());
+        // need to add a throw/catch
+    };
+    void _place_long_lived_cmd(const std::string cmd, const float t)
+    {
+        while () 
+        {
+            auto status = std::system(cmd.c_str());
+            sleep(t);
+        }
+    };
+    */
+    template std::tuple<double, double, double, double>get_stats(std::vector<double> input);
+    template std::tuple<float, float, float, float>get_stats(std::vector<float> input);
 
     #ifdef _MPI
     static bool _PU_USING_MPI=true;
