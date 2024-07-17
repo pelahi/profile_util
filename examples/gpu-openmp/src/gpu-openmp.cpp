@@ -27,7 +27,7 @@ template<class T> std::vector<T> allocate_and_init_vector(unsigned long long N)
         #pragma omp critical
         LogThreadAffinity();
         #pragma omp for 
-        for (auto i=0;i<v.size();i++)
+        for (auto i=0ul;i<N;i++)
         {
             v[i] = distr(gen);
         }
@@ -49,7 +49,7 @@ template<class T> T vector_sq_and_sum_cpu(std::vector<T> &v)
         #pragma omp critical
         LogThreadAffinity();
         #pragma omp for reduction(+:sum) nowait 
-        for (auto i=0;i<v.size();i++)
+        for (auto i=0ul;i<v.size();i++)
         {
             auto x = v[i];
             sum += x*x;
@@ -104,14 +104,26 @@ void allocate_mem_host(unsigned long long Nentries,
     std::vector<double> &x_double, std::vector<double> &y_double) 
 {
     auto time_mem = NewTimerHostOnly();
+    LogMemUsage();
+    LogSystemMem();
     Log()<<"Allocation on host with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
+// #ifdef GPU_UNIFIED
+//     // still open question whether I can use the move iterator
+//     // since this moves the data to within the container. 
+//     int* gputemp_i = nullptr;
+//     unsigned long long nbytes = Nentries * sizeof(int);
+//     cudaMallocManaged(&gputemp_i, nbytes);
+//     x_int = std::vector<int>(std::make_move_iterator(gputemp_i),
+//                          std::make_move_iterator(gputemp_i + Nentries));  
+// #else 
     x_int.resize(Nentries);
     y_int.resize(Nentries);
     x_float.resize(Nentries);
     y_float.resize(Nentries);
     x_double.resize(Nentries);
     y_double.resize(Nentries);
-    for (auto i=0;i<Nentries;i++) {
+// #endif
+    for (auto i=0ul;i<Nentries;i++) {
         x_int[i] = i;
         x_float[i] = 0.5*i;
         x_double[i] = 0.25*i;
@@ -133,7 +145,7 @@ void allocate_mem_gpu(unsigned long long Nentries,
     auto time_mem = NewTimerHostOnly();
     Log()<<"Allocating on GPU running with "<<Nentries<<" requiring "<<Nentries*2*(sizeof(int)+sizeof(float)+sizeof(double))/1024./1024./1024.<<"GB"<<std::endl;
     int nDevices;
-    size_t nbytes;
+    unsigned long long nbytes;
     pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
     x_int.resize(nDevices);
     y_int.resize(nDevices);
@@ -145,15 +157,21 @@ void allocate_mem_gpu(unsigned long long Nentries,
         pu_gpuErrorCheck(pu_gpuSetDevice(idev));
         auto time_local = NewTimer();
 #ifndef GPU_UNIFIED
-        nbytes = Nentries * sizeof(int);
-        pu_gpuErrorCheck(pu_gpuMalloc(&x_int[idev], nbytes));
-        pu_gpuErrorCheck(pu_gpuMalloc(&y_int[idev], nbytes));
-        nbytes = Nentries * sizeof(float);
-        pu_gpuErrorCheck(pu_gpuMalloc(&x_float[idev], nbytes));
-        pu_gpuErrorCheck(pu_gpuMalloc(&y_float[idev], nbytes));
         nbytes = Nentries * sizeof(double);
+        Log() <<nbytes/1024.0/1024.0/1024.0*2.0<<" is being allocated "<<std::endl;
         pu_gpuErrorCheck(pu_gpuMalloc(&x_double[idev], nbytes));
         pu_gpuErrorCheck(pu_gpuMalloc(&y_double[idev], nbytes));
+        Log() <<nbytes<<" Allocated "<<std::endl;
+        nbytes = Nentries * sizeof(int);
+        Log() <<nbytes/1024.0/1024.0/1024.0*2.0<<" is being allocated "<<std::endl;
+        pu_gpuErrorCheck(pu_gpuMalloc(&x_int[idev], nbytes));
+        pu_gpuErrorCheck(pu_gpuMalloc(&y_int[idev], nbytes));
+        Log() <<nbytes<<" Allocated "<<std::endl;
+        nbytes = Nentries * sizeof(float);
+        Log() <<nbytes/1024.0/1024.0/1024.0*2.0<<" is being allocated "<<std::endl;
+        pu_gpuErrorCheck(pu_gpuMalloc(&x_float[idev], nbytes));
+        pu_gpuErrorCheck(pu_gpuMalloc(&y_float[idev], nbytes));
+        Log() <<nbytes<<" Allocated "<<std::endl;
 #endif
         pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
         LogTimeTakenOnDevice(time_local);
@@ -306,7 +324,10 @@ void reset_gpu()
 int main(int argc, char **argv) {
     LogParallelAPI();
     LogBinding();
+    {
+    auto sampler = NewSampler(0.05);
 
+    // gpu_util::unified_vector<int> x_test(4);
     std::vector<int> x_int, y_int;
     std::vector<float> x_float, y_float;
     std::vector<double> x_double, y_double;
@@ -329,7 +350,36 @@ int main(int argc, char **argv) {
         x_int_gpu, y_int_gpu, 
         x_float_gpu, y_float_gpu, 
         x_double_gpu, y_double_gpu);
+#if defined(_OPENMP) && defined(RUN_OPENMP_WITH_GPU_KERNELS)
+    #pragma omp parallel \
+    default(none) shared(Nentries, x_int, x_float, x_double)\
+    shared(x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu, Niter)
+    {
+        auto time1 = NewTimerHostOnly();
+        std::vector<float> x_temp(Nentries);
+        double sum_temp = 0, val = 1.0;
+        #pragma omp barrier
+
+        if (omp_get_thread_num() == 0) 
+        {
+            compute_kernel1(Nentries, x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu, Niter);
+        }
+        else {
+            for (auto i=0;i<30;i++) 
+            {
+            for (auto &x:x_temp) 
+            {
+                x = val;
+                val += 0.22;
+                sum_temp += x*x+pow(x,-1.5)+sin(x)*exp(-x);
+            }
+            }
+        }
+        if (omp_get_thread_num() == 1) LogTimeTaken(time1);
+    }
+#else 
     compute_kernel1(Nentries, x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu, Niter);
+#endif
     transfer_from_gpu(Nentries, 
         x_int, y_int, 
         x_float, y_float, 
@@ -347,6 +397,9 @@ int main(int argc, char **argv) {
 #endif
     deallocate_mem_host(x_int, y_int, x_float, y_float, x_double, y_double);
     deallocate_mem_gpu(x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu);
+    LogCPUUsage(sampler);  
+    LogGPUUsage(sampler);  
+    }
     reset_gpu();
     
 }

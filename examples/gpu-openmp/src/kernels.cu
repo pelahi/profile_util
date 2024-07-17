@@ -12,27 +12,42 @@ void vector_square(const T *A_d, T *C_d, size_t N)
     }
 }
 
-void silly_template_instansiation()
+template <typename T> __global__ 
+void silly_lots_of_calcs(const T *A_d, T *C_d, size_t N)
 {
-    int ix,iy;
-    float fx,fy;
-    double dx,dy;
-    size_t N;
-    size_t blocksize = 256;
-    size_t threadsperblock = 1024;
-    pu_gpuLaunchKernel(vector_square, 
-        dim3(blocksize), dim3(threadsperblock), 
-        0, 0,
-        &ix, &iy, N);
-    pu_gpuLaunchKernel(vector_square, 
-        dim3(blocksize), dim3(threadsperblock), 
-        0, 0,
-        &fx, &fy, N);
-    pu_gpuLaunchKernel(vector_square, 
-        dim3(blocksize), dim3(threadsperblock), 
-        0, 0,
-        &dx, &dy, N);
+    size_t offset = (blockIdx.x * blockDim.x + threadIdx.x);
+    size_t stride = blockDim.x * gridDim.x;
+
+    for (size_t i=offset; i<N; i+=stride) {
+        C_d[i] = A_d[i] + A_d[i] * A_d[i] - 1.0/(A_d[i]*A_d[i]*A_d[i]) + sin(A_d[i]) + cos(A_d[i])*cos(A_d[i]);
+        C_d[i] = sin(C_d[i]) * cos(C_d[i]) + log(std::abs(C_d[i]))*exp(-std::abs(A_d[i]));
+        C_d[i] = 1.0/(sin(C_d[i]) * cos(C_d[i]) + log(std::abs(C_d[i]))*exp(-std::abs(A_d[i])));
+        for (size_t j=0;j<1000;j++) C_d[i] += C_d[i] = 1.0/(sin(C_d[i]) * cos(C_d[i]) + log(std::abs(C_d[i]))*exp(-std::abs(A_d[i])));
+        ;
+    }
 }
+
+// void silly_template_instantsiation()
+// {
+//     int ix,iy;
+//     float fx,fy;
+//     double dx,dy;
+//     size_t N;
+//     size_t blocksize = 256;
+//     size_t threadsperblock = 1024;
+//     pu_gpuLaunchKernel(vector_square, 
+//         dim3(blocksize), dim3(threadsperblock), 
+//         0, 0,
+//         &ix, &iy, N);
+//     pu_gpuLaunchKernel(vector_square, 
+//         dim3(blocksize), dim3(threadsperblock), 
+//         0, 0,
+//         &fx, &fy, N);
+//     pu_gpuLaunchKernel(vector_square, 
+//         dim3(blocksize), dim3(threadsperblock), 
+//         0, 0,
+//         &dx, &dy, N);
+// }
 
 void compute_kernel1(size_t N, 
     std::vector<int*> &x_int_gpu, 
@@ -55,6 +70,29 @@ void compute_kernel1(size_t N,
         pu_gpuErrorCheck(pu_gpuSetDevice(idev));
         auto time_kernel = NewTimer();
         for (auto i=0; i<Niter;i++) {
+#ifdef KERNEL2
+            pu_gpuLaunchKernel(silly_lots_of_calcs, 
+                dim3(blocksize), dim3(threadsperblock), 
+                dynsharedsize, stream,
+                x_int_gpu[idev], y_int_gpu[idev], N);
+#ifdef GPU_DEBUG
+            pu_gpuCheckLastKernel();
+#endif
+            pu_gpuLaunchKernel(silly_lots_of_calcs, 
+                dim3(blocksize), dim3(threadsperblock), 
+                dynsharedsize, stream,
+                x_float_gpu[idev], y_float_gpu[idev], N);
+#ifdef GPU_DEBUG
+            pu_gpuCheckLastKernel();
+#endif
+            pu_gpuLaunchKernel(silly_lots_of_calcs, 
+                dim3(blocksize), dim3(threadsperblock), 
+                dynsharedsize, stream,
+                x_double_gpu[idev], y_double_gpu[idev], N);
+#ifdef GPU_DEBUG
+            pu_gpuCheckLastKernel();
+#endif
+#else 
             pu_gpuLaunchKernel(vector_square, 
                 dim3(blocksize), dim3(threadsperblock), 
                 dynsharedsize, stream,
@@ -75,6 +113,7 @@ void compute_kernel1(size_t N,
                 x_double_gpu[idev], y_double_gpu[idev], N);
 #ifdef GPU_DEBUG
                 pu_gpuCheckLastKernel();
+#endif
 #endif
         }
         LogTimeTakenOnDevice(time_kernel);
