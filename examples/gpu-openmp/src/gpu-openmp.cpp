@@ -398,7 +398,8 @@ int main(int argc, char **argv) {
     deallocate_mem_host(x_int, y_int, x_float, y_float, x_double, y_double);
     deallocate_mem_gpu(x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu);
     LogCPUUsage(sampler);  
-    LogGPUUsage(sampler);  
+    LogGPUUsage(sampler); 
+    LogGPUEnergy(sampler);
     }
     reset_gpu();
     
