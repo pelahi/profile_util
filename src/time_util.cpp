@@ -102,7 +102,7 @@ namespace profiling_util {
         auto [ave, std, max, min] = get_stats(content);
         std::string new_ref = "@"+function+" L"+line_num;
         std::ostringstream report;
-        report <<"CPU usage statistics taken between : " << new_ref << " - " << s.get_ref() << " : ";
+        report <<"CPU usage statistics taken between : " << new_ref << " - " << s.get_ref() << " over " << ns_time(s.get())<< " : ";
         report <<" [ave,std,min,max] = [ "<<ave<<", "<<std<<", "<<min<<", "<<max<<" ]";
         s.Restart();
         return report.str();
@@ -124,7 +124,7 @@ namespace profiling_util {
         auto [ave, std, max, min] = get_stats(content);
         std::string new_ref = "@"+function+" L"+line_num;
         std::ostringstream report;
-        report <<"GPU usage statistics taken between : " << new_ref << " - " << s.get_ref() << " : ";
+        report <<"GPU usage statistics taken between : " << new_ref << " - " << s.get_ref() << " over " << ns_time(s.get())<< " : ";
         report <<" [ave,std,min,max] = [ "<<ave<<", "<<std<<", "<<min<<", "<<max<<" ]";
         s.Restart();
         return report.str();
@@ -143,10 +143,13 @@ namespace profiling_util {
             content.push_back(std::stof(line));
         }
         auto [ave, std, max, min] = get_stats(content);
+        // to get Wh
+        auto energy_used = ave * static_cast<double>(content.size()) * s.GetSampleTime()/1000.0/3600.0;
         std::string new_ref = "@"+function+" L"+line_num;
         std::ostringstream report;
-        report <<"GPU energy statistics taken between : " << new_ref << " - " << s.get_ref() << " : ";
-        report <<" [ave,std,min,max] = [ "<<ave<<", "<<std<<", "<<min<<", "<<max<<" ]";
+        report <<"GPU power statistics taken between : " << new_ref << " - " << s.get_ref() << " over " << ns_time(s.get())<< " : ";
+        report <<" [ave,std,min,max] W = [ "<<ave<<", "<<std<<", "<<min<<", "<<max<<" ]";
+        report <<" with energy (Wh) used = "<< energy_used;
         s.Restart();
         return report.str();
     }
