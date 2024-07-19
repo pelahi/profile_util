@@ -452,40 +452,52 @@ namespace profiling_util {
 #endif
     };
 
-    /// get the time taken between some reference time (which defaults to creation of timer )
+    /// @brief report the time taken between some reference time (which defaults to creation of timer )
     /// and current call
+    /// @param t instance of timer class 
+    /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
+    /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
+    /// @return string reporting time taken 
     std::string ReportTimeTaken(Timer &t, const std::string &f, const std::string &l);
+
+    /// @brief get the time taken between some reference time (which defaults to creation of timer )
+    /// and current call
+    /// @param t instance of timer class 
+    /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
+    /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
+    /// @return time taken 
     float GetTimeTaken(Timer &t, const std::string &f, const std::string &l);
 
 #if defined(_GPU)
+    /// @brief report the time taken between some reference time (which defaults to creation of timer )
+    /// and current call on the device 
+    /// @param t instance of timer class 
+    /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
+    /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
+    /// @return string reporting time taken 
     std::string ReportTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &l);
+    /// @brief get the time taken between some reference time (which defaults to creation of timer )
+    /// and current call on device 
+    /// @param t instance of timer class 
+    /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
+    /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
+    /// @return time taken 
     float GetTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &l);
 #endif
 
-    /*
-    /// @brief Place a command using std::system and threads 
-    /// @param cmd command to place 
-    void _place_cmd(const std::string cmd);
-
-    /// @brief Place a command using std::system and threads 
-    /// @param cmd command to place 
-    /// @param sleep_time time to sleep between running command
-    void _place_long_lived_cmd(const std::string cmd, float sleep_time);
-    */
-
     /// @brief get the ave, std, min, max of input vector
     /// @param input input vector
-    template <typename T> std::tuple<T,T,T,T>get_stats(std::vector<T> input)
+    template <typename T> std::tuple<T,T,T,T>get_stats(std::vector<T> &input, unsigned int offset = 0, unsigned int stride = 1)
     {
         T ave = 0, std = 0, min = 0, max = 0;
         if (input.size()>0) {
             min = max = input[0];
-            for (auto &i:input) 
+            for (auto i=offset;i<input.size();i+=stride)
             {
-                ave += i;
-                std += i*i;
-                min = std::min(i,min);
-                max = std::max(i,max);
+                ave += input[i];
+                std += input[i]*input[i];
+                min = std::min(input[i],min);
+                max = std::max(input[i],max);
             }
             auto n = static_cast<T>(input.size());
             ave /= n;
@@ -495,7 +507,7 @@ namespace profiling_util {
         return std::tie(ave, std, min, max);
     }
 
-    /// StateSample class that gets the stats of utilisation/energy
+    /// @brief StateSample class that gets the stats of utilisation/energy
     /// from point of creation to requested reporting.
     /// inherents public routines from Timer
     class StateSampler: public profiling_util::Timer {
@@ -513,6 +525,7 @@ namespace profiling_util {
         std::condition_variable cv;
         bool stopFlag = false;
         bool use_device = true;
+        int nDevices = 0;
 #ifdef _GPU
         std::string gpu_energy_fname, gpu_usage_fname, gpu_mem_fname, gpu_memusage_fname;
 #endif
@@ -574,9 +587,14 @@ namespace profiling_util {
         /// @return filename
         std::string GetGPUMemFname(){return gpu_mem_fname;}
 #endif
-        // read the data from a file and returnt the vector of sampling data
-        std::vector<double>& GetSamplingData(const std::string &fname);
+        /// @brief read the data from a file and returnt the vector of sampling data
+        /// @param fname the string of the file name to open
+        /// @return vector of data
+        std::vector<double> GetSamplingData(const std::string &fname);
 
+        /// @brief return number of devices visible to sampler
+        /// @return int of number of devices
+        int GetNumDevices(){return nDevices;};
     };
 
     /// @brief reports the statistics of CPU from start to current line

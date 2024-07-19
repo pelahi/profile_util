@@ -26,10 +26,10 @@ namespace profiling_util {
         {
             // usage cmd 
             std::vector<std::string> s_gpu_requests = {
-                std::string(pu_gpu_usage_request),
-                std::string(pu_gpu_energy_request),
-                std::string(pu_gpu_mem_request),
-                std::string(pu_gpu_memusage_request)
+                std::string(pu_gpu_usage_request(nDevices)),
+                std::string(pu_gpu_energy_request(nDevices)),
+                std::string(pu_gpu_mem_request(nDevices)),
+                std::string(pu_gpu_memusage_request(nDevices))
             };
             std::vector<std::string> fnames = {
                 gpu_usage_fname,
@@ -42,7 +42,7 @@ namespace profiling_util {
             {
                 auto req = s_gpu_requests[i];
                 auto fname = fnames[i];
-                s_gpu = std::string(pu_gpuMonitorCmd) + " " + req + " " + std::string(pu_gpu_formating);
+                s_gpu = std::string(pu_gpuMonitorCmd) + " " + req + " " + std::string(pu_gpu_formating(nDevices));
                 cmd = _set_sampling(s_gpu, fname);
                 (*threads).emplace_back(std::thread(&profiling_util::StateSampler::_place_long_lived_cmd, this, cmd, sample_time));
             }
@@ -64,9 +64,11 @@ namespace profiling_util {
         gpu_energy_fname = ".sampler.gpu_energy."+std::to_string(id)+".txt";
         gpu_mem_fname = ".sampler.gpu_mem."+std::to_string(id)+".txt";
         gpu_memusage_fname = ".sampler.gpu_memusage."+std::to_string(id)+".txt";
+        pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
 #endif
         // allocate the thread vector
         threads = new std::vector<std::thread>;
+
         _launch();
 
     }
@@ -98,17 +100,27 @@ namespace profiling_util {
         _launch();
     }
 
-    std::vector<double>& profiling_util::StateSampler::GetSamplingData(const std::string &fname)
+    std::vector<double> profiling_util::StateSampler::GetSamplingData(const std::string &fname)
     {
         std::ifstream file(fname);
         std::vector<double> content;
         std::string line;
         while (std::getline(file, line)) {
-            content.push_back(std::stod(line));
+            double val;
+            try {
+                val = std::stod(line);
+            }
+            // on two gcd cards, one will return N/A for power so catch it
+            // set val to zero
+            catch (const std::invalid_argument& ia) {
+                val = 0;
+            }
+            content.push_back(val);
         }
         file.close();
         return content;
     }
+
 
     template <typename T> inline std::string _make_statistics_report(
         const std::string &f, const std::string &l, 
@@ -120,7 +132,7 @@ namespace profiling_util {
         std::string new_ref = "@"+f+" L"+l;
         std::ostringstream report;
         report <<dev<<" "<<prop<<" ("<<unit<<") statistics taken between : " << new_ref << " - " << ref << " over " << time << " : "; 
-        report <<" [ave,std,min,max] = [ "<<ave<<", "<<std<<", "<<min<<", "<<max<<" ]";
+        report <<" [ave,std,min,max] = [ "<<ave<<", "<<std<<", "<<min<<", "<<max<<" ] ";
         return report.str();
     }
 
@@ -130,8 +142,8 @@ namespace profiling_util {
     {
         s.Pause();
         std::vector<double> content(s.GetSamplingData(s.GetCPUUsageFname()));
-        auto [ave, std, max, min] = get_stats(content);
         s.Restart();
+        auto [ave, std, max, min] = get_stats(content);
         return _make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "CPU", "Usage", "%", ave, std, max, min);
     }
 #ifdef _GPU
@@ -141,10 +153,17 @@ namespace profiling_util {
         int gid)
     {
         s.Pause();
-        std::vector<double> content(s.GetSamplingData(s.GetGPUUsageFname()));
-        auto [ave, std, max, min] = get_stats(content);
+        std::vector<double> content(std::move(s.GetSamplingData(s.GetGPUEnergyFname())));
         s.Restart();
-        return _make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU", "Usage", "%", ave, std, max, min);
+        auto n = s.GetNumDevices();
+        std::ostringstream report;
+        for (auto i=0;i<n;i++) 
+        {
+            auto [ave, std, max, min] = get_stats(content, i, n);
+            report <<_make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Usage", "%", ave, std, max, min);
+            report <<" | ";
+        }
+        return report.str();
     }
     std::string ReportGPUEnergy(profiling_util::StateSampler &s, 
         const std::string &function, 
@@ -152,14 +171,19 @@ namespace profiling_util {
         int gid)
     {
         s.Pause();
-        std::vector<double> content(s.GetSamplingData(s.GetGPUEnergyFname()));
-        auto [ave, std, max, min] = get_stats(content);
+        std::vector<double> content(std::move(s.GetSamplingData(s.GetGPUEnergyFname())));
         s.Restart();
-        // to get Wh
-        auto energy_used = ave * static_cast<double>(content.size()) * s.GetSampleTime()/1000.0/3600.0;
+        auto n = s.GetNumDevices();
         std::ostringstream report;
-        report << _make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU", "Power", "W", ave, std, max, min);
-        report <<" GPU Energy (Wh) used = "<< energy_used;
+        for (auto i=0;i<n;i++) 
+        {
+            auto [ave, std, max, min] = get_stats(content, i, n);
+            // to get Wh
+            auto energy_used = ave * static_cast<double>(content.size()) * s.GetSampleTime()/1000.0/3600.0;
+            report << _make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Power", "W", ave, std, max, min);
+            report <<" GPU Energy (Wh) used = "<< energy_used;
+            report <<" | ";
+        }
         return report.str();
     }
     std::string ReportGPUMem(profiling_util::StateSampler &s, 
@@ -168,10 +192,17 @@ namespace profiling_util {
         int gid)
     {
         s.Pause();
-        std::vector<double> content(s.GetSamplingData(s.GetGPUMemFname()));
-        auto [ave, std, max, min] = get_stats(content);
+        std::vector<double> content(std::move(s.GetSamplingData(s.GetGPUEnergyFname())));
         s.Restart();
-        return _make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU", "Memory", "MiB", ave, std, max, min);
+        auto n = s.GetNumDevices();
+        std::ostringstream report;
+        for (auto i=0;i<n;i++) 
+        {
+            auto [ave, std, max, min] = get_stats(content, i, n);
+            report <<_make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Memory", "MiB", ave, std, max, min);
+            report <<" | ";
+        }
+        return report.str();
     }
     std::string ReportGPUMemUsage(profiling_util::StateSampler &s, 
         const std::string &function, 
@@ -179,10 +210,17 @@ namespace profiling_util {
         int gid)
     {
         s.Pause();
-        std::vector<double> content(s.GetSamplingData(s.GetGPUMemUsageFname()));
-        auto [ave, std, max, min] = get_stats(content);
+        std::vector<double> content(std::move(s.GetSamplingData(s.GetGPUEnergyFname())));
         s.Restart();
-        return _make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU", "Memory Used", "%", ave, std, max, min);
+        auto n = s.GetNumDevices();
+        std::ostringstream report;
+        for (auto i=0;i<n;i++) 
+        {
+            auto [ave, std, max, min] = get_stats(content, i, n);
+            report <<_make_statistics_report<double>(function, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Memory Usage", "%", ave, std, max, min);
+            report <<" | ";
+        }
+        return report.str();
     }
 
 
@@ -194,6 +232,7 @@ namespace profiling_util {
         s.Pause();
         auto t = ns_time(s.get());
         auto ref = s.get_ref();
+        auto n = s.GetNumDevices();
         std::ostringstream report;
         std::vector<std::string> flist = {s.GetGPUUsageFname(), s.GetGPUMemUsageFname(), s.GetGPUEnergyFname()};
         std::vector<std::string> plist = {"Usage", "Memory Usage", "Power"};
@@ -201,15 +240,17 @@ namespace profiling_util {
         report << "GPU Statistics || ";
         for (auto i=0;i<flist.size();i++) 
         {
-            std::vector<double> content(s.GetSamplingData(flist[i]));
-            auto [ave, std, max, min] = get_stats(content);
-            report<< _make_statistics_report<double>(function, line_num, ref, t, "GPU", plist[i], ulist[i], ave, std, max, min);
-            if (plist[i] == "Power") 
-            {
-                auto energy_used = ave * static_cast<double>(content.size()) * s.GetSampleTime()/1000.0/3600.0;
-                report <<" GPU Energy (Wh) used = "<< energy_used;
+            std::vector<double> content(std::move(s.GetSamplingData(flist[i])));
+            for (auto j=0;j<n;j++) {
+                auto [ave, std, max, min] = get_stats(content, j, n);
+                report<< _make_statistics_report<double>(function, line_num, ref, t, "GPU"+std::to_string(j), plist[i], ulist[i], ave, std, max, min);
+                if (plist[i] == "Power") 
+                {
+                    auto energy_used = ave * static_cast<double>(content.size()) * s.GetSampleTime()/1000.0/3600.0;
+                    report <<" GPU Energy (Wh) used = "<< energy_used;
+                }
+                report <<" || ";
             }
-            report <<" || ";
         }
         s.Restart();
         return report.str();

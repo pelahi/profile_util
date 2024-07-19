@@ -3,19 +3,20 @@
 LIBDIR=$(shell pwd)/../../lib/
 INCDIR=$(shell pwd)/../../include/
 
-#CXX=hipcc
-#ARCH=gfx90a
-CXX=nvc++
-ARCH=unified
+CXX=hipcc
+ARCH=gfx90a
+#CXX=nvc++
+#ARCH=unified
 #CXX=nvc++
 
 
 ifeq ($(CXX), hipcc)
-GPUFLAGS=-D_HIP -D__HIP_PLATFORM_AMD__ -DGPU_DEBUG #-DOMP_GPU_OFFLOAD
+GPUFLAGS=-D_HIP -D__HIP_PLATFORM_AMD__ -DGPU_DEBUG -DUSE_SLURM #-DOMP_GPU_OFFLOAD
 LIB=-lprofile_util_hip_omp
 OMPFLAGS=-DUSEOPENMP -fopenmp --offload-arch=$(ARCH) -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=$(ARCH)
 #OMPFLAGS=-DUSEOPENMP -fopenmp --offload-arch=$(ARCH) 
-FLAGS=-std=c++17 -fPIC -I$(INCDIR) -O3
+FLAGS=-std=c++17 -fPIC -I$(INCDIR) -O3 -munsafe-fp-atomics 
+FLAGS+=-stdlib++-isystem /opt/cray/pe/gcc/12.2.0/snos/include/g++ -stdlib++-isystem /opt/cray/pe/gcc/12.2.0/snos/include/g++/x86_64-suse-linux
 LFLAGS=-L$(LIBDIR)  -Wl,-rpath=$(LIBDIR)
 endif
 
@@ -23,7 +24,7 @@ ifeq ($(CXX), nvc++)
 GPUFLAGS=-D_CUDA -DGPU_DEBUG -DOMP_GPU_OFFLOAD
 LIB=-lprofile_util_cuda_omp
 OMPFLAGS=-mp
-FLAGS=-std=c++17 -fPIC -I$(INCDIR) -cuda -gpu=$(ARCH) 
+FLAGS=-std=c++17 -fPIC -I$(INCDIR) -cuda -gpu=$(ARCH) -O3
 ifeq ($(ARCH), unified)
 FLAGS+=-DGPU_UNIFIED
 endif
