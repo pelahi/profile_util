@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-CXX="hipcc --amdgpu-target=gfx90a"
-MPICXX="hipcc --amdgpu-target=gfx90a"
+CXX="hipcc --amdgpu-target=gfx90a -stdlib++-isystem /opt/cray/pe/gcc/12.2.0/snos/include/g++ -stdlib++-isystem /opt/cray/pe/gcc/12.2.0/snos/include/g++/x86_64-suse-linux"
+MPICXX="hipcc --amdgpu-target=gfx90a -stdlib++-isystem /opt/cray/pe/gcc/12.2.0/snos/include/g++ -stdlib++-isystem /opt/cray/pe/gcc/12.2.0/snos/include/g++/x86_64-suse-linux"
 if [ ! -z $1 ]; then
     CXX=$1
 fi
