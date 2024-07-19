@@ -514,7 +514,7 @@ namespace profiling_util {
         bool stopFlag = false;
         bool use_device = true;
 #ifdef _GPU
-        std::string gpu_energy_fname, gpu_usage_fname, gpu_freq_fname;
+        std::string gpu_energy_fname, gpu_usage_fname, gpu_mem_fname, gpu_memusage_fname;
 #endif
         
         std::string _set_sampling(const std::string &cmd, const std::string &out)
@@ -523,6 +523,7 @@ namespace profiling_util {
             // "; sleep " + std::to_string(sample_time/1000.0) + "; done;");
             return std::string(cmd + " >> " + out);
         }
+        /// @brief launches the sampling processes
         void _launch();
 
         /// @brief Place a command using std::system and threads 
@@ -566,7 +567,16 @@ namespace profiling_util {
         /// @brief get file name store gpu energy info
         /// @return filename
         std::string GetGPUEnergyFname(){return gpu_energy_fname;}
+        /// @brief get file name store gpu mem usage info
+        /// @return filename
+        std::string GetGPUMemUsageFname(){return gpu_memusage_fname;}
+        /// @brief get file name store gpu mem used info
+        /// @return filename
+        std::string GetGPUMemFname(){return gpu_mem_fname;}
 #endif
+        // read the data from a file and returnt the vector of sampling data
+        std::vector<double>& GetSamplingData(const std::string &fname);
+
     };
 
     /// @brief reports the statistics of CPU from start to current line
@@ -575,6 +585,7 @@ namespace profiling_util {
     /// @param l code line number where called
     /// @return string of CPU usage statistics
     std::string ReportCPUUsage(StateSampler &s, const std::string &f, const std::string &l);
+
 #ifdef _GPU
     /// @brief reports the statistics of GPU usage from start to current line
     /// @param s sampler to use for reporting 
@@ -582,6 +593,7 @@ namespace profiling_util {
     /// @param l code line number where called
     /// @return string of GPU usage statistics
     std::string ReportGPUUsage(StateSampler &s, const std::string &f, const std::string &l, int gpu_id = -1);
+
     /// @brief reports the statistics of GPU energy from start to current line
     /// @param s sampler to use for reporting 
     /// @param f function where called in code, useful to provide __func__ 
@@ -589,13 +601,27 @@ namespace profiling_util {
     /// @return string of GPU energy statistics
     std::string ReportGPUEnergy(StateSampler &s, const std::string &f, const std::string &l, int gpu_id = -1);
 
-    /// reports the current status of a GPU. Best with openmp to spawn a thread
-    /// that captures information while GPU is doing something. 
+    /// @brief reports the statistics of GPU memory used in MiB from start to current line
+    /// @param s sampler to use for reporting 
+    /// @param f function where called in code, useful to provide __func__ 
+    /// @param l code line number where called
+    /// @return string of GPU memory used in MiB statistics
+    std::string ReportGPUMem(StateSampler &s, const std::string &f, const std::string &l, int gpu_id = -1);
+
+    /// @brief reports the statistics of GPU memory used in % from start to current line
+    /// @param s sampler to use for reporting 
+    /// @param f function where called in code, useful to provide __func__ 
+    /// @param l code line number where called
+    /// @return string of GPU memory usage statistics
+    std::string ReportGPUMemUsage(StateSampler &s, const std::string &f, const std::string &l, int gpu_id = -1);
+
+    /// reports the GPU statistics 
     /// @param func function where called in code, useful to provide __func__ and __LINE
     /// @param line code line number where called
     /// @param gpu_id gpu device of interest. Default is -1 and gets all gpus
     /// @return string of GPU energy, usage, etc
-    std::string ReportGPUStatus(std::string func, std::string line, int gpu_id = -1);
+    std::string ReportGPUStatistics(StateSampler &s, const std::string &f, const std::string &l, int gpu_id = -1);
+
 #ifdef _MPI
     /// MPI wrapper for reporting GPU status
     /// @param func function where called in code, useful to provide __func__ and __LINE

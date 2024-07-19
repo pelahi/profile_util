@@ -60,9 +60,11 @@
 
 #define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
 #define pu_gpuMonitorCmd "rocm-smi"
-#define pu_gpu_usage_request " --showuse "
-#define pu_gpu_energy_request " --showpower "
-#define pu_gpu_formating " --csv "
+#define pu_gpu_usage_request " --showuse --csv | head -n 2 | tail -n 1 | sed \"s/,/ /g\" | awk '{print $2}'"
+#define pu_gpu_energy_request " --showpower --csv | head -n 2 | tail -n 1 | sed \"s/,/ /g\" | awk '{print $2}' "
+#define pu_gpu_mem_request " --showmeminfo VRAM --csv | head -n 2 | tail -n 1 | sed \"s/,/ /g\" | awk '{print $3/1000.0/1000.0}'"
+#define pu_gpu_memusage_request " --showmeminfo VRAM --csv | head -n 2 | tail -n 1 | sed \"s/,/ /g\" | awk '{print $3/$2*100.0}'"
+#define pu_gpu_formating " "
 
 #endif
 
@@ -104,6 +106,8 @@ kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
 // commands for querying gpu
 #define pu_gpu_energy_request " --query-gpu=power.draw "
 #define pu_gpu_usage_request " --query-gpu=utilization.gpu "
+#define pu_gpu_mem_request " --query-gpu=memory.used "
+#define pu_gpu_memusage_request " --query-gpu=utilization.memory "
 #define pu_gpu_formating " --format=csv,noheader,nounits "
 
 #endif

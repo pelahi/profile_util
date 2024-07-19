@@ -110,9 +110,15 @@
 
 #ifdef _GPU
 #define LogGPUUsage(sampler) Log()<<profiling_util::ReportGPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
-#define LoggerGPUUsage(logger,timer) Logger(logger)<<profiling_util::ReportGPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerGPUUsage(logger,sampler) Logger(logger)<<profiling_util::ReportGPUUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
 #define LogGPUEnergy(sampler) Log()<<profiling_util::ReportGPUEnergy(sampler, __func__, std::to_string(__LINE__))<<std::endl;
-#define LoggerGPUEnergy(logger,timer) Logger(logger)<<profiling_util::ReportGPUEnergy(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerGPUEnergy(logger,sampler) Logger(logger)<<profiling_util::ReportGPUEnergy(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LogGPUMem(sampler) Log()<<profiling_util::ReportGPUMem(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerGPUMem(logger,sampler) Logger(logger)<<profiling_util::ReportGPUMem(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LogGPUMemUsage(sampler) Log()<<profiling_util::ReportGPUMemUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerGPUMemUsage(logger,sampler) Logger(logger)<<profiling_util::ReportGPUMemUsage(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LogGPUStatistics(sampler) Log()<<profiling_util::ReportGPUStatistics(sampler, __func__, std::to_string(__LINE__))<<std::endl;
+#define LoggerGPUStatistics(logger,sampler) Logger(logger)<<profiling_util::ReportGPUStatistics(sampler, __func__, std::to_string(__LINE__))<<std::endl;
 #endif
 
 #define NewSampler(t) profiling_util::StateSampler(__func__, std::to_string(__LINE__), true, t);
