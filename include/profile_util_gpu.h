@@ -107,11 +107,11 @@ kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
 #define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
 #define pu_gpuMonitorCmd "nvidia-smi"
 // commands for querying gpu
-#define pu_gpu_energy_request " --query-gpu=power.draw "
-#define pu_gpu_usage_request " --query-gpu=utilization.gpu "
-#define pu_gpu_mem_request " --query-gpu=memory.used "
-#define pu_gpu_memusage_request " --query-gpu=utilization.memory "
-#define pu_gpu_formating " --format=csv,noheader,nounits "
+#define pu_gpu_energy_request(ngpus) std::string(" --query-gpu=power.draw ")
+#define pu_gpu_usage_request(ngpus) std::string(" --query-gpu=utilization.gpu ")
+#define pu_gpu_mem_request(ngpus) std::string(" --query-gpu=memory.used ")
+#define pu_gpu_memusage_request(ngpus) std::string(" --query-gpu=utilization.memory ")
+#define pu_gpu_formating(ngpus) std::string(" --format=csv,noheader,nounits ")
 
 #endif
 

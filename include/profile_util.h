@@ -491,13 +491,13 @@ namespace profiling_util {
     {
         T ave = 0, std = 0, min = 0, max = 0;
         if (input.size()>0) {
-            min = max = input[0];
+            min = max = input[offset];
             for (auto i=offset;i<input.size();i+=stride)
             {
                 ave += input[i];
                 std += input[i]*input[i];
-                min = std::min(input[i],min);
-                max = std::max(input[i],max);
+                min = std::min(input[i], min);
+                max = std::max(input[i], max);
             }
             auto n = static_cast<T>(input.size());
             ave /= n;
