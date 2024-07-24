@@ -350,10 +350,13 @@ int main(int argc, char **argv) {
         x_int_gpu, y_int_gpu, 
         x_float_gpu, y_float_gpu, 
         x_double_gpu, y_double_gpu);
+    auto sampler1 = NewSampler(0.01);
 #if defined(_OPENMP) && defined(RUN_OPENMP_WITH_GPU_KERNELS)
     #pragma omp parallel \
     default(none) shared(Nentries, x_int, x_float, x_double)\
-    shared(x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu, Niter)
+    shared(x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu, Niter) \
+    shared(sampler, sampler1)
+    
     {
         auto time1 = NewTimerHostOnly();
         std::vector<float> x_temp(Nentries);
@@ -380,6 +383,8 @@ int main(int argc, char **argv) {
 #else 
     compute_kernel1(Nentries, x_int_gpu, y_int_gpu, x_float_gpu, y_float_gpu, x_double_gpu, y_double_gpu, Niter);
 #endif
+    LogCPUUsage(sampler1);  
+    LogGPUStatistics(sampler1);
     transfer_from_gpu(Nentries, 
         x_int, y_int, 
         x_float, y_float, 
@@ -387,6 +392,7 @@ int main(int argc, char **argv) {
         x_int_gpu, y_int_gpu, 
         x_float_gpu, y_float_gpu, 
         x_double_gpu, y_double_gpu);
+/*
     vector_sq_and_sum_cpu(x_int);
     vector_sq_and_sum_cpu(x_float);
     vector_sq_and_sum_cpu(x_double);
@@ -400,6 +406,10 @@ int main(int argc, char **argv) {
     LogCPUUsage(sampler);  
     LogGPUUsage(sampler); 
     LogGPUEnergy(sampler);
+    LogGPUMem(sampler);
+    LogGPUMemUsage(sampler);
+    LogGPUStatistics(sampler);
+*/
     }
     reset_gpu();
     
