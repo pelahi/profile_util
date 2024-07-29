@@ -76,6 +76,7 @@
 #define pu_gpu_mem_request(ngpus) std::string(" --query-gpu=memory.used ")
 #define pu_gpu_memusage_request(ngpus) std::string(" --query-gpu=utilization.memory ")
 #define pu_gpu_formating(ngpus) std::string(" --format=csv,noheader,nounits ")
+#endif
 
 #endif
 
