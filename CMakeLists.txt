@@ -42,3 +42,10 @@ include_directories(${PU_INCLUDE_DIRS})
 include_directories(${PU_SOURCE_DIRS})
 add_subdirectory(${PU_SOURCE_DIRS})
 
+# Are we part of an outside build?
+# If so, we want to let the caller know what to include
+set(_export OFF)
+get_directory_property(_hasParent PARENT_DIRECTORY)
+if (_hasParent)
+	set(_export ON)
+endif()
