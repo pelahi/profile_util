@@ -132,7 +132,7 @@ std::vector<float> MPIGatherTimeStats(profiling_util::Timer time1, std::string f
 {
     std::vector<float> times(NProcs);
     auto p = times.data();
-    auto time_taken = profiling_util::GetTimeTaken(time1, f, l);
+    auto time_taken = profiling_util::GetTimeTaken(time1, f, __FILE__, l);
     MPI_Gather(&time_taken, 1, MPI_FLOAT, p, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
     return times;
 }

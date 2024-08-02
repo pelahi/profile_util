@@ -5,6 +5,12 @@
 #include "profile_util.h"
 
 namespace profiling_util {
+    std::string __extract_filename(std::string fullpath) 
+    { 
+        auto lastSlashPos = fullpath.find_last_of('/');
+        return fullpath.substr(lastSlashPos + 1);
+    };
+
     std::string __when(){
         auto log_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         std::string whenbuff=std::ctime(&log_time);

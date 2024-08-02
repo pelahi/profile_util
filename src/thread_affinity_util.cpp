@@ -223,7 +223,7 @@ namespace profiling_util {
         return binding_report;
     }
     /// return binding as called within openmp region 
-    std::string ReportThreadAffinity(std::string func, std::string line)
+    std::string ReportThreadAffinity(std::string func, std::string file, std::string line)
     {
         std::string result;
         cpu_set_t coremask;
@@ -231,7 +231,7 @@ namespace profiling_util {
         memset(clbuf, 0, sizeof(clbuf));
         memset(hnbuf, 0, sizeof(hnbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
-        result = "Thread affinity report @ " + func + " L" + line + " : ";
+        result = "Thread affinity report : ";//@ " + func + " "+file+":L" + line + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
         cpuset_to_cstr(&coremask, clbuf);
         int thread = 0, level = 1;
@@ -250,7 +250,7 @@ namespace profiling_util {
 
     /// return binding as called within openmp region, MPI aware 
 #ifdef _MPI 
-    std::string MPIReportThreadAffinity(std::string func, std::string line, MPI_Comm &comm)
+    std::string MPIReportThreadAffinity(std::string func, std::string file, std::string line, MPI_Comm &comm)
     {
         std::string result;
         int ThisTask=0, NProcs=1;
@@ -262,7 +262,7 @@ namespace profiling_util {
         memset(hnbuf, 0, sizeof(hnbuf));
         memset(clbuf, 0, sizeof(clbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
-        result = "Thread affinity report @ " + func + " L" + line + " : ";
+        result = "Thread affinity report : ";//@ " + func + " "+file+":L" + line + " : ";
         result += "::\t On node " + std::string(hnbuf) + " : ";
         result += "MPI Rank " + std::to_string(ThisTask) + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
@@ -298,9 +298,9 @@ extern "C" {
         strcpy(str,s.c_str());
         return static_cast<int>(s.length());
     }
-    int report_thread_affinity(char *str, char *f, int l)
+    int report_thread_affinity(char *str, char *f, char *F, int l)
     {        
-        std::string s = profiling_util::ReportThreadAffinity(std::string(f), std::to_string(l));
+        std::string s = profiling_util::ReportThreadAffinity(std::string(f), std::string(F), std::to_string(l));
         strcpy(str,s.c_str());
         return static_cast<int>(s.length());
     }

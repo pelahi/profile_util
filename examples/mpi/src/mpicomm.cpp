@@ -137,7 +137,7 @@ std::vector<float> MPIGatherTimeStats(profiling_util::Timer time1, std::string f
 {
     std::vector<float> times(NProcs);
     auto p = times.data();
-    auto time_taken = profiling_util::GetTimeTaken(time1, f, l);
+    auto time_taken = profiling_util::GetTimeTaken(time1, f, __FILE__, l);
     MPI_Gather(&time_taken, 1, MPI_FLOAT, p, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
     return times;
 }
@@ -271,7 +271,7 @@ void MPITestSendRecvSingleRank(Options &opt)
                     auto time1 = NewTimer();
                     MPI_Sendrecv(p1, sizeofsends[i], MPI_DOUBLE, itask, itask, 
                         p2, sizeofsends[i], MPI_DOUBLE, itask, itask, MPI_COMM_WORLD, &stat);
-                    auto timetaken = profiling_util::GetTimeTaken(time1, __func__, std::to_string(__LINE__));
+                    auto timetaken = profiling_util::GetTimeTaken(time1, __func__, __FILE__, std::to_string(__LINE__));
                     // times.push_back(timetaken);
                     messages.push_back(std::to_string(itask) + ": " + std::to_string(timetaken));
                 }
