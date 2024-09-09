@@ -1,6 +1,7 @@
 # set the source dir
 
 set(PU_SOURCES
+    "${git_revision_cpp}"
     mem_util.cpp
     thread_affinity_util.cpp
     time_util.cpp
@@ -16,6 +17,11 @@ if (PU_CXX_FLAGS)
     target_compile_options(profile_util PUBLIC ${PU_CXX_FLAGS})
 endif()
 set_target_properties(profile_util PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+if (BUILD_TESTING)
+	add_subdirectory(tests)
+endif()
+
 install(TARGETS profile_util 
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

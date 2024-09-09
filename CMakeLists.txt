@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(profile_util)
+project(profile_util,
+  VERSION 0.5
+  DESCRIPTION "Utility to report parallel API related information and also timing."
+  LANGUAGES CXX
+)
 
 # define cxx 
 set(CMAKE_CXX_STANDARD 17)
@@ -19,6 +23,9 @@ pu_option(ENABLE_CUDA "Enable CUDA" OFF)
 pu_option(ENABLE_HIP "Enable HIP" OFF)
 pu_option(ENABLE_HIP_AMD "Enable HIP with AMD (ROCM)" ON)
 pu_option(ENABLE_SHARED_LIB "Enable shared library" ON)
+include(CTest)
+enable_testing()
+
 
 if ((PU_ENABLE_HIP) AND (PU_ENABLE_CUDA))
    message(FATAL_ERROR "Build conflict: Requesting both CUDA and HIP. Must have one or the other")
@@ -34,6 +41,15 @@ pu_hip()
 pu_openmp()
 
 add_compile_options(-Wall -Wextra -Wpedantic -fPIC)
+#
+# Add git revision information in a generated .cpp file, which we then include
+# as part of the library
+#
+include(cmake/GetGitRevisionDescription.cmake)
+get_git_head_revision(GIT_REFSPEC GIT_SHA1)
+git_local_changes(GIT_HAS_LOCAL_CHANGES)
+set(git_revision_cpp "${CMAKE_CURRENT_BINARY_DIR}/git_revision.cpp")
+configure_file("src/git_revision.cpp.in" "${git_revision_cpp}" @ONLY)
 
 # set the paths for building
 set(PU_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -49,3 +65,4 @@ get_directory_property(_hasParent PARENT_DIRECTORY)
 if (_hasParent)
 	set(_export ON)
 endif()
+

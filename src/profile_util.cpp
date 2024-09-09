@@ -17,6 +17,12 @@ namespace profiling_util {
         whenbuff.erase(std::find(whenbuff.begin(), whenbuff.end(), '\n'), whenbuff.end());
         return whenbuff;
     }
+    std::string __version(){
+        std::string version= "Version: ";
+        version+= __PU_VERSION__;
+        version+=", git:" + profiling_util::git_sha1();
+        return version; 
+    }
     template std::tuple<double, double, double, double>get_stats(std::vector<double> &input, unsigned int offset, unsigned int stride);
     template std::tuple<float, float, float, float>get_stats(std::vector<float> &input, unsigned int offset, unsigned int stride);
 

@@ -36,6 +36,16 @@
 #endif
 //@}
 
+/// \defgroup LogVersion
+/// report information about utility version
+//@{
+/// report version 
+#define LogVersion() Log()<<profiling_util::__version()<<std::endl;
+#ifdef _MPI
+#define MPILog0Version() if(profiling_util::__comm_rank == 0) Log()<<profile_util::__version()<<std::endl;
+#endif
+//@}
+
 /// \defgroup LogAffinity
 /// Log thread affinity and parallelism either to std or an ostream
 //@{

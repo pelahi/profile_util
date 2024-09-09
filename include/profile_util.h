@@ -5,6 +5,8 @@
 #ifndef _PROFILE_UTIL
 #define _PROFILE_UTIL
 
+#define __PU_VERSION__ "0.5"
+
 #include <cstring>
 #include <cmath>
 #include <string>
@@ -35,6 +37,7 @@
 
 #include "profile_util_gpu.h"
 #include "profile_util_api.h"
+#include "git_revision.h"
 
 namespace profiling_util {
 
@@ -44,6 +47,8 @@ namespace profiling_util {
     extern MPI_Comm __comm;
     extern int __comm_rank;
 #endif
+    /// function getting version information
+    std::string __version();
 
     /// function that returns a string of the time at when it is called. 
     std::string __when();
