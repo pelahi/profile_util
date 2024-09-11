@@ -6,22 +6,25 @@
 
 int main(int argc, char *argv[])
 {
-#ifdef _MPI
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &ThisTask);
-    MPI_Comm_size(MPI_COMM_WORLD, &NProcs);
-#else
     int NProcs = 1;
     int ThisTask = 0;
+#ifdef _MPI
+    auto comm = MPI_COMM_WORLD;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(comm, &ThisTask);
+    MPI_Comm_size(comm, &NProcs);
+    MPISetLoggingComm(comm);
 #endif 
 #ifdef _MPI
     MPILog0Version();
     MPILog0ParallelAPI();
+    MPILog0NodeSystemMem();
+    MPI_Barrier(comm);
 #else 
     LogVersion();
     LogParallelAPI();
-#endif
     LogSystemMem();
+#endif
     LogMemUsage();
 
 #ifdef _MPI

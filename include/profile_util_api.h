@@ -42,7 +42,7 @@
 /// report version 
 #define LogVersion() Log()<<profiling_util::__version()<<std::endl;
 #ifdef _MPI
-#define MPILog0Version() if(profiling_util::__comm_rank == 0) Log()<<profile_util::__version()<<std::endl;
+#define MPILog0Version() if(profiling_util::__comm_rank == 0) Log()<<profiling_util::__version()<<std::endl;
 #endif
 //@}
 
