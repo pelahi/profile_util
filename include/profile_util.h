@@ -670,25 +670,25 @@ extern "C" {
     /// \defgropu LogAffinity_C
     //@{
     int report_parallel_api(char *str);
-    #define log_parallel_api() printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__profiling_util::ReportParallelAPI().c_str());
+    #define log_parallel_api() printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__, profiling_util::ReportParallelAPI().c_str());
     int report_binding(char *str);
-    #define log_binding() printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__profiling_util::ReportBinding().c_str());
+    #define log_binding() printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__, profiling_util::ReportBinding().c_str());
     int report_thread_affinity(char *str, char *f, char *F, int l);
-    #define log_thread_affinity() printf("%s\n", profiling_util::ReportThreadAffinity(__func__,__FILE__, std::to_string(__LINE__)).c_str());
+    #define log_thread_affinity() printf("%s\n", profiling_util::ReportThreadAffinity(__func__, __FILE__, __LINE__, std::to_string(__LINE__)).c_str());
     #ifdef _MPI
-        #define mpi_log0_thread_affinity() if(ThisTask == 0) printf("%s\n", ReportThreadAffinity(__func__, __FILE__, std::to_string(__LINE__)).c_str());
-        #define mpi_log_thread_affinity() printf("%s\n", profiling_util::MPIReportThreadAffinity(__func__, __FILE__, std::to_string(__LINE__)).c_str());
-        #define mpi_log0_parallel_api() if(ThisTask==0) printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__profiling_util::ReportParallelAPI().c_str());
-        #define mpi_log0_binding() if (ThisTask == 0) printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__profiling_util::ReportBinding().c_str());
+        #define mpi_log0_thread_affinity() if(ThisTask == 0) printf("%s\n", ReportThreadAffinity(__func__, __FILE__, __LINE__, std::to_string(__LINE__)).c_str());
+        #define mpi_log_thread_affinity() printf("%s\n", profiling_util::MPIReportThreadAffinity(__func__, __FILE__, __LINE__, std::to_string(__LINE__)).c_str());
+        #define mpi_log0_parallel_api() if(ThisTask==0) printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__, profiling_util::ReportParallelAPI().c_str());
+        #define mpi_log0_binding() if (ThisTask == 0) printf("@%s %s:L%d %s\n", __func__, __FILE__, __LINE__, profiling_util::ReportBinding().c_str());
     #endif
     //@}
 
     /// \defgroup LogMem_C
     /// Log memory usage either to std or an ostream
     //@{
-    #define log_mem_usage() printf("%s \n", profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__)).c_str());
+    #define log_mem_usage() printf("%s \n", profiling_util::ReportMemUsage(__func__, __FILE__, std::to_string(__LINE__)).c_str());
     #ifdef _MPI
-    #define mpi_log_mem_usage() printf("%s %s \n", _MPI_calling_rank.c_str(), profiling_util::ReportMemUsage(__func__, std::to_string(__LINE__)).c_str());
+    #define mpi_log_mem_usage() printf("%s %s \n", _MPI_calling_rank.c_str(), profiling_util::ReportMemUsage(__func__, __FILE__, std::to_string(__LINE__)).c_str());
     #endif
     //@}
 
