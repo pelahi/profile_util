@@ -661,6 +661,93 @@ namespace profiling_util {
     /// @return string of GPU energy, usage, etc
     std::string ReportGPUStatistics(StateSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 #endif
+
+    /// @brief GeneralSampler class that runs a command as a thread and stores output
+    /// inherents public routines from Timer
+    virtual class GeneralSampler: public profiling_util::Timer {
+
+    protected:
+        // unique sample identifier
+        int id; 
+        /// process id
+        int pid = 0;
+        // time in seconds between samples
+        float sample_time = 1.0;
+        std::vector<std::thread>* threads = nullptr;
+        std::mutex mtx;
+        std::condition_variable cv;
+        bool stopFlag = false;
+        bool use_device = true;
+
+    protected:
+        std::string _set_sampling(const std::string &cmd, const std::string &out)
+        {
+            return std::string(cmd + " >> " + out);
+        }
+        /// @brief launches the sampling processes
+        void _launch();
+
+        /// @brief Place a command using std::system and threads 
+        /// @param cmd command to place 
+        void _place_cmd(const std::string cmd)
+        {
+            auto status = std::system(cmd.c_str());
+        }
+
+        /// @brief Place a command using std::system and threads 
+        /// @param cmd command to place 
+        /// @param sleep_time time to sleep between running command
+        void _place_long_lived_cmd(const std::string cmd, float sleep_time)
+        {
+            while (!stopFlag) 
+            {
+                auto status = std::system(cmd.c_str());
+                usleep(sleep_time);
+            }
+        }
+
+    public:
+        GeneralSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true);
+        ~GeneralSampler();
+        /// @brief pauses the sampling by joining threads
+        void Pause();
+        /// @brief restart the sampling by launching threads
+        void Restart();
+        /// @brief get sample time 
+        /// @return sample time
+        float GetSampleTime(){return sample_time;}
+
+        /// @brief read the data from a file and returnt the vector of sampling data
+        /// @param fname the string of the file name to open
+        /// @return vector of data
+        std::vector<double> GetSamplingData(const std::string &fname);
+    };
+
+    class IOSampler: protected profiling_util::GeneralSampler {
+
+    private:
+        std::string io_ops_fname, io_read_fname, io_write_fname;
+    public:
+        /// @brief get file name store io ops info
+        /// @return filename
+        std::string GetIOStatsFname(){return io_ops_fname;}
+        /// @brief get file name store io read speed info
+        /// @return filename
+        std::string GetIOReadFname(){return io_read_fname;}
+        /// @brief get file name store io write speed info
+        /// @return filename
+        std::string GetIOWriteFname(){return io_write_fname;}
+    }
+
+    /// @brief reports the statistics of IO from start to current line
+    /// @param s sampler to use for reporting 
+    /// @param f function where called in code, useful to provide __func__ 
+    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param l code line number where called
+    /// @return string of CPU usage statistics
+    std::string ReportIOStats(IOSampler &s, const std::string &f, const std::string &F, const std::string &l);
+
+
 }
 
 #endif

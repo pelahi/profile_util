@@ -13,6 +13,77 @@ namespace profiling_util {
         return os;
     }
 
+    void profiling_util::GeneralSampler::_launch()
+    {
+        // usage cmd 
+        // below just showing what could be the format
+        // of the child classes 
+        std::vector<std::string> requests = {};
+        std::vector<std::string> fnames = {};
+        std::string s;
+        std::string cmd;
+        for (auto i=0;i<requests.size();i++) 
+        {
+            auto req = requests[i];
+            auto fname = fnames[i];
+            s = req;
+            cmd = _set_sampling(s, fname);
+            (*threads).emplace_back(std::thread(&profiling_util::GeneralSampler::_place_long_lived_cmd, this, cmd, sample_time));
+        }
+    }
+    profiling_util::StateSampler::GeneralSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device) : profiling_util::Timer::Timer(f,F,l,_use_device)
+    {
+        pid = getpid();
+        // set the random seed based on curent time 
+        std::srand(static_cast<unsigned>(std::time(nullptr)));
+        id = std::rand();
+        sample_time = _sample_time_in_sec*1000.0;//convert to micro seconds
+        use_device = _use_device;
+        // allocate the thread vector
+        threads = new std::vector<std::thread>;
+        _launch();
+    }
+    profiling_util::GeneralSampler::~GeneralSampler()
+    {
+        Pause();
+        delete threads;
+    }
+    void profiling_util::GeneralSampler::Pause()
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        stopFlag = true;
+        cv.notify_all();
+        for (auto &t: *threads) t.join();
+        (*threads).clear();
+    }
+    void profiling_util::GeneralSampler::Restart()
+    {
+        stopFlag = false;
+        cv.notify_all();
+        _launch();
+    }
+
+    std::vector<double> profiling_util::GeneralSampler::GetSamplingData(const std::string &fname)
+    {
+        std::ifstream file(fname);
+        std::vector<double> content;
+        std::string line;
+        while (std::getline(file, line)) {
+            double val;
+            try {
+                val = std::stod(line);
+            }
+            // on two gcd cards, one will return N/A for power so catch it
+            // set val to zero
+            catch (const std::invalid_argument& ia) {
+                val = 0;
+            }
+            content.push_back(val);
+        }
+        file.close();
+        return content;
+    }
+
     void profiling_util::StateSampler::_launch()
     {
         std::string cmd;
