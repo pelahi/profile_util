@@ -131,8 +131,8 @@
 #define LoggerGPUStatistics(logger,sampler) Logger(logger)<<profiling_util::ReportGPUStatistics(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
 #endif
 
-#define NewSampler(t) profiling_util::StateSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), true, t);
-#define NewSamplerHostOnly(t) profiling_util::StateSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), false, t);
+#define NewComputeSampler(t) profiling_util::ComputeSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), true, t);
+#define NewComputeSamplerHostOnly(t) profiling_util::ComputeSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), false, t);
 //@}
 
 #endif

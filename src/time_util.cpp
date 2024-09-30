@@ -13,13 +13,9 @@ namespace profiling_util {
         return os;
     }
 
-    void profiling_util::GeneralSampler::_launch()
+    void profiling_util::GeneralSampler::_launch(std::vector<std::string> requests, std::vector<std::string> fnames)
     {
-        // usage cmd 
-        // below just showing what could be the format
-        // of the child classes 
-        std::vector<std::string> requests = {};
-        std::vector<std::string> fnames = {};
+        if (requests.size() == 0) return;
         std::string s;
         std::string cmd;
         for (auto i=0;i<requests.size();i++) 
@@ -31,7 +27,7 @@ namespace profiling_util {
             (*threads).emplace_back(std::thread(&profiling_util::GeneralSampler::_place_long_lived_cmd, this, cmd, sample_time));
         }
     }
-    profiling_util::StateSampler::GeneralSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device) : profiling_util::Timer::Timer(f,F,l,_use_device)
+    profiling_util::GeneralSampler::GeneralSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device, bool _keep_files) : profiling_util::Timer::Timer(f,F,l,_use_device)
     {
         pid = getpid();
         // set the random seed based on curent time 
@@ -39,9 +35,9 @@ namespace profiling_util {
         id = std::rand();
         sample_time = _sample_time_in_sec*1000.0;//convert to micro seconds
         use_device = _use_device;
+        keep_files = _keep_files;
         // allocate the thread vector
         threads = new std::vector<std::thread>;
-        _launch();
     }
     profiling_util::GeneralSampler::~GeneralSampler()
     {
@@ -84,51 +80,8 @@ namespace profiling_util {
         return content;
     }
 
-    void profiling_util::StateSampler::_launch()
+    profiling_util::ComputeSampler::ComputeSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device, bool _keep_files) : profiling_util::GeneralSampler(f, F, l, _sample_time_in_sec, _use_device, _keep_files)
     {
-        std::string cmd;
-        std::string s_cpu;
-        s_cpu = " ps -p " + std::to_string(pid) + " -o %cpu | tail -n 1";
-        
-        cmd =  profiling_util::StateSampler::_set_sampling(s_cpu, cpu_usage_fname); 
-        (*threads).emplace_back(std::thread(&profiling_util::StateSampler::_place_long_lived_cmd, this, cmd, sample_time));
-#ifdef _GPU
-        if (use_device) 
-        {
-            // usage cmd 
-            std::vector<std::string> s_gpu_requests = {
-                std::string(pu_gpu_usage_request(nDevices)),
-                std::string(pu_gpu_energy_request(nDevices)),
-                std::string(pu_gpu_mem_request(nDevices)),
-                std::string(pu_gpu_memusage_request(nDevices))
-            };
-            std::vector<std::string> fnames = {
-                gpu_usage_fname,
-                gpu_energy_fname,
-                gpu_mem_fname,
-                gpu_memusage_fname
-            };
-            std::string s_gpu;
-            for (auto i=0;i<s_gpu_requests.size();i++) 
-            {
-                auto req = s_gpu_requests[i];
-                auto fname = fnames[i];
-                s_gpu = std::string(pu_gpuMonitorCmd) + " " + req + " " + std::string(pu_gpu_formating(nDevices));
-                cmd = _set_sampling(s_gpu, fname);
-                (*threads).emplace_back(std::thread(&profiling_util::StateSampler::_place_long_lived_cmd, this, cmd, sample_time));
-            }
-        }
-#endif
-    }
-    profiling_util::StateSampler::StateSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device) : profiling_util::Timer::Timer(f,F,l,_use_device)
-    {
-        pid = getpid();
-        // set the random seed based on curent time 
-        std::srand(static_cast<unsigned>(std::time(nullptr)));
-        id = std::rand();
-        sample_time = _sample_time_in_sec*1000.0;//convert to micro seconds
-        use_device = _use_device;
-
         cpu_usage_fname = ".sampler.cpu_usage." + std::to_string(id) + ".txt";
 #ifdef _GPU
         gpu_usage_fname = ".sampler.gpu_usage."+std::to_string(id)+".txt";
@@ -137,63 +90,46 @@ namespace profiling_util {
         gpu_memusage_fname = ".sampler.gpu_memusage."+std::to_string(id)+".txt";
         pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
 #endif
-        // allocate the thread vector
-        threads = new std::vector<std::thread>;
-
-        _launch();
-
+        std::string s_cpu = " ps -p " + std::to_string(pid) + " -o %cpu | tail -n 1";
+        std::vector<std::string> requests = {s_cpu};
+        std::vector<std::string> fnames = {cpu_usage_fname};
+#ifdef _GPU
+        if (use_device) {
+            std::vector<std::string> s_gpu_requests = {
+                std::string(pu_gpu_usage_request(nDevices)),
+                std::string(pu_gpu_energy_request(nDevices)),
+                std::string(pu_gpu_mem_request(nDevices)),
+                std::string(pu_gpu_memusage_request(nDevices))
+            };
+            for (auto i=0;i<s_gpu_requests.size();i++) 
+            {
+                auto req = s_gpu_requests[i];
+                auto s_gpu = std::string(pu_gpuMonitorCmd) + " " + req + " " + std::string(pu_gpu_formating(nDevices));
+                requests.push_back(s_gpu);
+            }
+            fnames.push_back(gpu_usage_fname);
+            fnames.push_back(gpu_energy_fname);
+            fnames.push_back(gpu_mem_fname);
+            fnames.push_back(gpu_memusage_fname);
+        }
+#endif
+        profiling_util::ComputeSampler::_launch(requests,fnames);
     }
-    profiling_util::StateSampler::~StateSampler()
+    profiling_util::ComputeSampler::~ComputeSampler()
     {
-        Pause();
-        delete threads;
         // and remove files
+        if (keep_files) return;
         std::filesystem::remove(cpu_usage_fname);
         std::filesystem::remove(cpu_energy_fname);
 #ifdef _GPU
-        std::filesystem::remove(gpu_usage_fname);
-        std::filesystem::remove(gpu_energy_fname);
-        std::filesystem::remove(gpu_mem_fname);
-        std::filesystem::remove(gpu_memusage_fname);
-#endif
-
-    }
-    void profiling_util::StateSampler::Pause()
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        stopFlag = true;
-        cv.notify_all();
-        for (auto &t: *threads) t.join();
-        (*threads).clear();
-    }
-    void profiling_util::StateSampler::Restart()
-    {
-        stopFlag = false;
-        cv.notify_all();
-        _launch();
-    }
-
-    std::vector<double> profiling_util::StateSampler::GetSamplingData(const std::string &fname)
-    {
-        std::ifstream file(fname);
-        std::vector<double> content;
-        std::string line;
-        while (std::getline(file, line)) {
-            double val;
-            try {
-                val = std::stod(line);
-            }
-            // on two gcd cards, one will return N/A for power so catch it
-            // set val to zero
-            catch (const std::invalid_argument& ia) {
-                val = 0;
-            }
-            content.push_back(val);
+        if (use_device) {
+            std::filesystem::remove(gpu_usage_fname);
+            std::filesystem::remove(gpu_energy_fname);
+            std::filesystem::remove(gpu_mem_fname);
+            std::filesystem::remove(gpu_memusage_fname);
         }
-        file.close();
-        return content;
+#endif
     }
-
 
     template <typename T> inline std::string _make_statistics_report(
         const std::string &f, const std::string &F, const std::string &l, 
@@ -209,7 +145,7 @@ namespace profiling_util {
         return report.str();
     }
 
-    std::string ReportCPUUsage(profiling_util::StateSampler &s, 
+    std::string ReportCPUUsage(profiling_util::ComputeSampler &s, 
         const std::string &function, 
         const std::string &file, 
         const std::string &line_num)
@@ -221,7 +157,7 @@ namespace profiling_util {
         return _make_statistics_report<double>(function, file, line_num, s.get_ref(), ns_time(s.get()), "CPU", "Usage", "%", ave, std, min, max);
     }
 #ifdef _GPU
-    std::string ReportGPUUsage(profiling_util::StateSampler &s, 
+    std::string ReportGPUUsage(profiling_util::ComputeSampler &s, 
         const std::string &function, 
         const std::string &file, 
         const std::string &line_num, 
@@ -240,7 +176,7 @@ namespace profiling_util {
         }
         return report.str();
     }
-    std::string ReportGPUEnergy(profiling_util::StateSampler &s, 
+    std::string ReportGPUEnergy(profiling_util::ComputeSampler &s, 
         const std::string &function, 
         const std::string &file, 
         const std::string &line_num,
@@ -262,7 +198,7 @@ namespace profiling_util {
         }
         return report.str();
     }
-    std::string ReportGPUMem(profiling_util::StateSampler &s, 
+    std::string ReportGPUMem(profiling_util::ComputeSampler &s, 
         const std::string &function, 
         const std::string &file, 
         const std::string &line_num, 
@@ -281,7 +217,7 @@ namespace profiling_util {
         }
         return report.str();
     }
-    std::string ReportGPUMemUsage(profiling_util::StateSampler &s, 
+    std::string ReportGPUMemUsage(profiling_util::ComputeSampler &s, 
         const std::string &function, 
         const std::string &file, 
         const std::string &line_num, 
@@ -302,7 +238,7 @@ namespace profiling_util {
     }
 
 
-    std::string ReportGPUStatistics(profiling_util::StateSampler &s, 
+    std::string ReportGPUStatistics(profiling_util::ComputeSampler &s, 
         const std::string &function, 
         const std::string &file, 
         const std::string &line_num, 
@@ -336,6 +272,7 @@ namespace profiling_util {
     }
 
 #endif
+
 
     std::string ReportTimeTaken(
         Timer &t, 

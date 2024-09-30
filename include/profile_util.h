@@ -522,37 +522,33 @@ namespace profiling_util {
         return std::tie(ave, std, min, max);
     }
 
-    /// @brief StateSample class that gets the stats of utilisation/energy
-    /// from point of creation to requested reporting.
+    /// @brief GeneralSampler class that runs a command as a thread and stores output
     /// inherents public routines from Timer
-    class StateSampler: public profiling_util::Timer {
+    class GeneralSampler: public profiling_util::Timer {
 
-    private:
+    protected:
         // unique sample identifier
         int id; 
         /// process id
         int pid = 0;
         // time in seconds between samples
         float sample_time = 1.0;
-        std::string cpu_energy_fname, cpu_usage_fname, cpu_freq_fname;
         std::vector<std::thread>* threads = nullptr;
         std::mutex mtx;
         std::condition_variable cv;
         bool stopFlag = false;
         bool use_device = true;
-        int nDevices = 0;
-#ifdef _GPU
-        std::string gpu_energy_fname, gpu_usage_fname, gpu_mem_fname, gpu_memusage_fname;
-#endif
-        
+        bool keep_files = false;
+
+    protected:
         std::string _set_sampling(const std::string &cmd, const std::string &out)
         {
-            // return std::string("while true; do " + cmd + " >> " + out +
-            // "; sleep " + std::to_string(sample_time/1000.0) + "; done;");
             return std::string(cmd + " >> " + out);
         }
         /// @brief launches the sampling processes
-        void _launch();
+        /// @param requests vector of strings containing commands to run
+        /// @param fnames vector of strings containing file names to which to save the output
+        void _launch(std::vector<std::string> requests = {}, std::vector<std::string> fnames = {});
 
         /// @brief Place a command using std::system and threads 
         /// @param cmd command to place 
@@ -572,16 +568,46 @@ namespace profiling_util {
                 usleep(sleep_time);
             }
         }
+
     public:
-        StateSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true);
-        ~StateSampler();
+        GeneralSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true, bool _keep_files = false);
+        ~GeneralSampler();
         /// @brief pauses the sampling by joining threads
         void Pause();
         /// @brief restart the sampling by launching threads
         void Restart();
         /// @brief get sample time 
         /// @return sample time
-        double GetSampleTime(){return sample_time;}
+        float GetSampleTime(){return sample_time;}
+        /// @brief indicate whether to keep files used for sampling 
+        /// @param _keep_files bool whether to keep files
+        void SetKeepFiles(bool _keep_files){keep_files = _keep_files;};
+        /// @brief get whether keeping files  
+        /// @return bool of keeping files 
+        bool GetKeepFiles(){return keep_files;}
+
+        /// @brief read the data from a file and returnt the vector of sampling data
+        /// @param fname the string of the file name to open
+        /// @return vector of data
+        std::vector<double> GetSamplingData(const std::string &fname);
+
+    };
+
+    /// @brief ComputeSample class that gets the stats of utilisation/energy
+    /// from point of creation to requested reporting.
+    /// inherents public routines from Timer
+    class ComputeSampler: public profiling_util::GeneralSampler {
+
+    private:
+        int nDevices = 0;
+        std::string cpu_energy_fname, cpu_usage_fname, cpu_freq_fname;
+#ifdef _GPU
+        std::string gpu_energy_fname, gpu_usage_fname, gpu_mem_fname, gpu_memusage_fname;
+#endif
+        
+    public:
+        ComputeSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true, bool _keep_files=false);
+        ~ComputeSampler();
         /// @brief get file name store cpu usage info
         /// @return filename
         std::string GetCPUUsageFname(){return cpu_usage_fname;}
@@ -602,15 +628,11 @@ namespace profiling_util {
         /// @return filename
         std::string GetGPUMemFname(){return gpu_mem_fname;}
 #endif
-        /// @brief read the data from a file and returnt the vector of sampling data
-        /// @param fname the string of the file name to open
-        /// @return vector of data
-        std::vector<double> GetSamplingData(const std::string &fname);
-
         /// @brief return number of devices visible to sampler
         /// @return int of number of devices
         int GetNumDevices(){return nDevices;};
     };
+
 
     /// @brief reports the statistics of CPU from start to current line
     /// @param s sampler to use for reporting 
@@ -618,7 +640,7 @@ namespace profiling_util {
     /// @param F function where called in code, useful to provide __FILE__ 
     /// @param l code line number where called
     /// @return string of CPU usage statistics
-    std::string ReportCPUUsage(StateSampler &s, const std::string &f, const std::string &F, const std::string &l);
+    std::string ReportCPUUsage(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l);
 
 #ifdef _GPU
     /// @brief reports the statistics of GPU usage from start to current line
@@ -627,7 +649,7 @@ namespace profiling_util {
     /// @param F function where called in code, useful to provide __FILE__ 
     /// @param l code line number where called
     /// @return string of GPU usage statistics
-    std::string ReportGPUUsage(StateSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
+    std::string ReportGPUUsage(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
     /// @brief reports the statistics of GPU energy from start to current line
     /// @param s sampler to use for reporting 
@@ -635,7 +657,7 @@ namespace profiling_util {
     /// @param F function where called in code, useful to provide __FILE__ 
     /// @param l code line number where called
     /// @return string of GPU energy statistics
-    std::string ReportGPUEnergy(StateSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
+    std::string ReportGPUEnergy(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
     /// @brief reports the statistics of GPU memory used in MiB from start to current line
     /// @param s sampler to use for reporting 
@@ -643,7 +665,7 @@ namespace profiling_util {
     /// @param F function where called in code, useful to provide __FILE__ 
     /// @param l code line number where called
     /// @return string of GPU memory used in MiB statistics
-    std::string ReportGPUMem(StateSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
+    std::string ReportGPUMem(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
     /// @brief reports the statistics of GPU memory used in % from start to current line
     /// @param s sampler to use for reporting 
@@ -651,7 +673,7 @@ namespace profiling_util {
     /// @param F function where called in code, useful to provide __FILE__ 
     /// @param l code line number where called
     /// @return string of GPU memory usage statistics
-    std::string ReportGPUMemUsage(StateSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
+    std::string ReportGPUMemUsage(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
     /// reports the GPU statistics 
     /// @param f function where called in code, useful to provide __func__ and __LINE
@@ -659,69 +681,8 @@ namespace profiling_util {
     /// @param l code line number where called
     /// @param gpu_id gpu device of interest. Default is -1 and gets all gpus
     /// @return string of GPU energy, usage, etc
-    std::string ReportGPUStatistics(StateSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
+    std::string ReportGPUStatistics(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 #endif
-
-    /// @brief GeneralSampler class that runs a command as a thread and stores output
-    /// inherents public routines from Timer
-    virtual class GeneralSampler: public profiling_util::Timer {
-
-    protected:
-        // unique sample identifier
-        int id; 
-        /// process id
-        int pid = 0;
-        // time in seconds between samples
-        float sample_time = 1.0;
-        std::vector<std::thread>* threads = nullptr;
-        std::mutex mtx;
-        std::condition_variable cv;
-        bool stopFlag = false;
-        bool use_device = true;
-
-    protected:
-        std::string _set_sampling(const std::string &cmd, const std::string &out)
-        {
-            return std::string(cmd + " >> " + out);
-        }
-        /// @brief launches the sampling processes
-        void _launch();
-
-        /// @brief Place a command using std::system and threads 
-        /// @param cmd command to place 
-        void _place_cmd(const std::string cmd)
-        {
-            auto status = std::system(cmd.c_str());
-        }
-
-        /// @brief Place a command using std::system and threads 
-        /// @param cmd command to place 
-        /// @param sleep_time time to sleep between running command
-        void _place_long_lived_cmd(const std::string cmd, float sleep_time)
-        {
-            while (!stopFlag) 
-            {
-                auto status = std::system(cmd.c_str());
-                usleep(sleep_time);
-            }
-        }
-
-    public:
-        GeneralSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true);
-        ~GeneralSampler();
-        /// @brief pauses the sampling by joining threads
-        void Pause();
-        /// @brief restart the sampling by launching threads
-        void Restart();
-        /// @brief get sample time 
-        /// @return sample time
-        float GetSampleTime(){return sample_time;}
-
-        /// @brief read the data from a file and returnt the vector of sampling data
-        /// @param fname the string of the file name to open
-        /// @return vector of data
-        std::vector<double> GetSamplingData(const std::string &fname);
-    };
 
     class IOSampler: protected profiling_util::GeneralSampler {
 
@@ -737,7 +698,7 @@ namespace profiling_util {
         /// @brief get file name store io write speed info
         /// @return filename
         std::string GetIOWriteFname(){return io_write_fname;}
-    }
+    };
 
     /// @brief reports the statistics of IO from start to current line
     /// @param s sampler to use for reporting 
@@ -746,7 +707,6 @@ namespace profiling_util {
     /// @param l code line number where called
     /// @return string of CPU usage statistics
     std::string ReportIOStats(IOSampler &s, const std::string &f, const std::string &F, const std::string &l);
-
 
 }
 

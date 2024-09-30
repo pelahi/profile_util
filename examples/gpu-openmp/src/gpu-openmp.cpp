@@ -325,7 +325,7 @@ int main(int argc, char **argv) {
     LogParallelAPI();
     LogBinding();
     {
-    auto sampler = NewSampler(0.05);
+    auto sampler = NewComputeSampler(0.05);
 
     // gpu_util::unified_vector<int> x_test(4);
     std::vector<int> x_int, y_int;
@@ -350,7 +350,7 @@ int main(int argc, char **argv) {
         x_int_gpu, y_int_gpu, 
         x_float_gpu, y_float_gpu, 
         x_double_gpu, y_double_gpu);
-    auto sampler1 = NewSampler(0.01);
+    auto sampler1 = NewComputeSampler(0.01);
 #if defined(_OPENMP) && defined(RUN_OPENMP_WITH_GPU_KERNELS)
     #pragma omp parallel \
     default(none) shared(Nentries, x_int, x_float, x_double)\
