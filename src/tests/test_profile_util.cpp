@@ -26,7 +26,8 @@ int main(int argc, char *argv[])
 #endif
     LogMemUsage();
     auto t1 = NewTimerHostOnly();
-    auto s1 = NewSampler(0.01);
+    auto s1 = NewComputeSampler(0.01);
+    s1.SetKeepFiles(true);
     sleep(1);
     std::vector<float> xvec(1000000);
     std::default_random_engine generator;
@@ -36,7 +37,7 @@ int main(int argc, char *argv[])
         x = distribution(generator);
         x = exp(-x*x)*x/(1.0+x)+sin(pow(x*x,0.25));
     }
-    LogCPUUsage(s1);  
+    LogCPUUsage(s1);
     LogTimeTaken(t1);
 
 #ifdef _GPU
@@ -49,10 +50,13 @@ int main(int argc, char *argv[])
     for (auto idev=0;idev<nDevices;idev++) {
         pu_gpuErrorCheck(pu_gpuSetDevice(idev));
         auto time_local = NewTimer();
+        auto sgpu = NewComputeSampler(0.01);
         auto nbytes = Nentries * sizeof(float);
         pu_gpuErrorCheck(pu_gpuMalloc(&xdev[idev], nbytes));
         pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
+        sleep(2.0);
         LogTimeTakenOnDevice(time_local);
+        LogGPUStatistics(sgpu);
     }
     LogTimeTaken(tgpumem);
 #endif
