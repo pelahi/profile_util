@@ -127,7 +127,7 @@ std::vector<float> MPIGatherTimeStats(profiling_util::Timer time1, std::string f
 {
     std::vector<float> times(NProcs);
     auto p = times.data();
-    auto time_taken = profiling_util::GetTimeTaken(time1, f, l);
+    auto time_taken = profiling_util::GetTimeTaken(time1, f, __FILE__, l);
     MPI_Gather(&time_taken, 1, MPI_FLOAT, p, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
     return times;
 }
@@ -495,8 +495,8 @@ void MPITestGPUCopy(Options &opt){
             pu_gpuErrorCheck(pu_gpuEventDestroy(gpuEventStop));
             auto s = GetTransferAndBandwidth(memcopytimes,memcopybandwidth);
             Log()<<" GPU "<<idev<<":"<<s<<std::endl;
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p1[idev]));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p2[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p1[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p2[idev]));
             memcopytimes.clear();
             memcopybandwidth.clear();
         }
@@ -595,8 +595,8 @@ void MPITestGPUBandwidthSendRecv(Options &opt){
         for (auto idev=0;idev<nDevices;idev++) {
             Log()<<" Freeing memory on "<<idev<<std::endl;
             pu_gpuErrorCheck(pu_gpuSetDevice(idev));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p1[idev]));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p2[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p1[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p2[idev]));
         }
     }
     senddata.clear();
@@ -707,8 +707,8 @@ void MPITestGPUAsyncSendRecv(Options &opt){
         for (auto idev=0;idev<nDevices;idev++) {
             Log()<<" Freeing memory on "<<idev<<std::endl;
             pu_gpuErrorCheck(pu_gpuSetDevice(idev));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p1[idev]));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p2[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p1[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p2[idev]));
         }
     }
     senddata.clear();
@@ -808,7 +808,7 @@ void MPITestGPUCorrectSendRecv(Options &opt){
         for (auto idev=0;idev<nDevices;idev++) {
             Log()<<" Freeing memory on "<<idev<<std::endl;
             pu_gpuErrorCheck(pu_gpuSetDevice(idev));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p1[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p1[idev]));
         }
     }
     senddata.clear();
@@ -898,8 +898,8 @@ void MPITestGPUAllReduce(Options &opt){
         for (auto idev=0;idev<nDevices;idev++) {
             Log()<<" Freeing memory on "<<idev<<std::endl;
             pu_gpuErrorCheck(pu_gpuSetDevice(idev));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p1[idev]));
-            pu_gpuErrorCheck(pu_gpuFree(gpu_p2[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p1[idev]));
+            pu_gpuErrorCheck(pu_gpuHostFree(gpu_p2[idev]));
         }
     }
     senddata.clear();

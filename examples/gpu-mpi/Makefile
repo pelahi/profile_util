@@ -10,7 +10,7 @@ INCDIR=$(shell pwd)/../../include/
 
 GPU=nvidia
 CXX=nvc++
-ARCH=unified
+ARCH=mem:unified
 CRAY=false
 
 ifeq ($(CXX), hipcc)
