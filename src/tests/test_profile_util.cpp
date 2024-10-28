@@ -17,11 +17,13 @@ int main(int argc, char *argv[])
 #ifdef _MPI
     MPILog0Version();
     MPILog0ParallelAPI();
+    MPILog0Binding();
     MPILog0NodeSystemMem();
     MPI_Barrier(comm);
 #else 
     LogVersion();
     LogParallelAPI();
+    LogBinding();
     LogSystemMem();
 #endif
     LogMemUsage();
