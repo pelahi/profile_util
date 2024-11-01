@@ -77,6 +77,10 @@ namespace profiling_util {
     std::string MPIReportThreadAffinity(std::string func, std::string file, std::string line, MPI_Comm &comm);
 #endif
 
+    /// reports MPI rank 
+    /// @param task rank of mpi
+    std::string MPICallingRank(int task);
+
 
      /// run a command
     /// @param cmd string of command to run on system
@@ -707,6 +711,22 @@ namespace profiling_util {
     /// @param l code line number where called
     /// @return string of CPU usage statistics
     std::string ReportIOStats(IOSampler &s, const std::string &f, const std::string &F, const std::string &l);
+
+    /// @brief ComputeSample class that gets the stats of utilisation/energy
+    /// from point of creation to requested reporting.
+    /// inherents public routines from Timer
+    class STraceSampler: public profiling_util::GeneralSampler {
+
+    private:
+        std::string strace_fname;
+        
+    public:
+        STraceSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true, bool _keep_files=true);
+        ~STraceSampler();
+        /// @brief get file name store strace info
+        /// @return filename
+        std::string GetStraceFname(){return strace_fname;}
+    };
 
 }
 

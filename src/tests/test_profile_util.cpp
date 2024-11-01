@@ -29,6 +29,7 @@ int main(int argc, char *argv[])
     LogMemUsage();
     auto t1 = NewTimerHostOnly();
     auto s1 = NewComputeSampler(0.01);
+    auto st1 = NewSTraceSampler(0.1);
     s1.SetKeepFiles(true);
     sleep(1);
     std::vector<float> xvec(1000000);

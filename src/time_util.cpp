@@ -273,6 +273,20 @@ namespace profiling_util {
 
 #endif
 
+    profiling_util::STraceSampler::STraceSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device, bool _keep_files) : profiling_util::GeneralSampler(f, F, l, _sample_time_in_sec, _use_device, _keep_files)
+    {
+        strace_fname = ".sampler.strace." + std::to_string(id) + ".txt";
+        std::string s_cpu = "strace -d -p " + std::to_string(pid) + " 2>&1 ";
+        std::vector<std::string> requests = {s_cpu};
+        std::vector<std::string> fnames = {strace_fname};
+        profiling_util::STraceSampler::_launch(requests,fnames);
+    }
+    profiling_util::STraceSampler::~STraceSampler()
+    {
+        // and remove files
+        if (keep_files) return;
+        std::filesystem::remove(strace_fname);
+    }
 
     std::string ReportTimeTaken(
         Timer &t, 

@@ -5,4 +5,6 @@ examples/openmp/bin/*
 examples/mpi/bin/*
 examples/gpu/bin/*
 examples/gpu-mpi/bin/*
+profile_util.cpython*so
+src/profile_util.cpython*.so
 
