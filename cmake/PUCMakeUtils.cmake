@@ -72,6 +72,22 @@ macro(pu_find_cuda)
     endif()
 endmacro()
 
+macro(pu_find_pybind)
+    find_package(Python COMPONENTS Interpreter Development)
+    find_package(pybind11 CONFIG REQUIRED)
+    set(PYBIND11_FINDPYTHON ON)
+    # # pybind11 method:
+    # pybind11_add_module(MyModule1 src1.cpp)
+
+    # # Python method:
+    # Python_add_library(MyModule2 src2.cpp)
+    # target_link_libraries(MyModule2 PUBLIC pybind11::headers)
+    # set_target_properties(MyModule2 PROPERTIES
+    #                                 INTERPROCEDURAL_OPTIMIZATION ON
+    #                                 CXX_VISIBILITY_PRESET ON
+    #                                 VISIBILITY_INLINES_HIDDEN ON)
+endmacro()
+
 macro(pu_mpi)
     set(PU_HAS_MPI No)
     if (PU_ENABLE_MPI)
@@ -100,6 +116,12 @@ macro(pu_cuda)
     endif()
 endmacro()
 
+macro(pu_pybind)
+    if (PU_ENABLE_PYTHON_INTERFACE)
+        pu_find_pybind()
+    endif()
+endmacro()
+
 macro(pu_report feature)
 
     # Output feature name and underscore it in the next line
@@ -122,7 +144,7 @@ macro(pu_report feature)
         string(RANDOM LENGTH ${_nspaces} _spaces)
         string(REGEX REPLACE "." " " _spaces "${_spaces}")
         string(CONCAT _msg "${_msg}" ${_spaces})
-        message(" ${_msg} ${VR_HAS_${_varname}}")
+        message(" ${_msg} ${PU_HAS_${_varname}}")
     endforeach()
 endmacro()
 

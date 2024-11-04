@@ -4,7 +4,6 @@ from pybind11.setup_helpers import Pybind11Extension, build_ext
 import pybind11
 
 # Define the extension module
-# what to do with the cpp sources 'profile_util.cpp', 'mem_util.cpp', 'thread_affinity_util.cpp', 'time_util.cpp',  'pybind11_git_revision.cpp'
 ext_modules = [
     Extension(
         'profile_util',  # Module name
@@ -15,7 +14,7 @@ ext_modules = [
             'include/'
         ],
         language='c++',  # Specify the language
-        extra_compile_args=['-std=c++20', '-O3', '-D_USING_SETUP'],  # Add other compiler flags if needed
+        extra_compile_args=['-std=c++20', '-O3'],  # Add other compiler flags if needed
         depends = ['include/profile_util.h', 'include/profile_util_gpu.h']
     ),
 ]
