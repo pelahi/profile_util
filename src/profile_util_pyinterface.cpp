@@ -59,6 +59,42 @@ PYBIND11_MODULE(py_profile_util, m) {
         );
 #endif
 
+    /// @brief Python Timer class API
+    //@{
+    py::class_<ComputeSampler>(m, "ComputeSampler")
+        .def(py::init<const std::string &, const std::string &, const std::string &, float , bool , bool>())
+        .def("GetCPUUsageFname", &ComputeSampler::GetCPUUsageFname)
+        .def("GetCPUEnergyFname", &ComputeSampler::GetCPUEnergyFname)
+#ifdef _GPU 
+        .def("GetGPUUsageFname", &ComputeSampler::GetGPUUsageFname)
+        .def("GetGPUEnergyFname", &ComputeSampler::GetGPUEnergyFname)
+        .def("GetGPUMemUsageFname", &ComputeSampler::GetGPUMemUsageFname)
+        .def("GetGPUMemFname", &ComputeSampler::GetGPUMemFname)
+#endif
+        .def("GetNumDevices", &ComputeSampler::GetNumDevices);
+    
+    m.def("ReportCPUUsage", &ReportCPUUsage, 
+        "Reports the usage of CPUs between creation of sampler and when/where this is called."
+        );
+#if defined(_GPU)
+    m.def("ReportGPUUsage", &ReportGPUUsage, 
+        "Reports the usage of GPU between creation of sampler and when/where this is called."
+        );
+    m.def("ReportGPUEnergy", &ReportGPUEnergy, 
+        "Reports the power and energy consumed of GPU between creation of sampler and when/where this is called."
+        );
+    m.def("ReportGPUMem", &ReportGPUMem, 
+        "Reports the GPU memory used in MiB between creation of sampler and when/where this is called."
+        );
+    m.def("ReportGPUMemUsage", &ReportGPUMemUsage, 
+        "Reports the GPU memory used in % between creation of sampler and when/where this is called."
+        );
+    m.def("ReportGPUStatistics", &ReportStatistics, 
+        "Reports the GPU statistics (usage, energy, etc) between creation of sampler and when/where this is called."
+        );
+#endif
+    //@}
+
     /// @defgroup Python_API_Thread_affinity
     //@{
     m.def("cpuset_to_cstr", &cpuset_to_cstr);
