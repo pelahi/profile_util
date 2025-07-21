@@ -7,6 +7,7 @@ set(PU_SOURCES
     time_util.cpp
     profile_util.cpp
 )
+
 if (PU_ENABLE_SHARED_LIB)
     add_library(profile_util SHARED ${PU_SOURCES})
 else()
@@ -18,7 +19,7 @@ if (PU_CXX_FLAGS)
 endif()
 set_target_properties(profile_util PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-if (BUILD_TESTING)
+if (BUILD_TESTING AND PU_ENABLE_TESTS)
 	add_subdirectory(tests)
 endif()
 

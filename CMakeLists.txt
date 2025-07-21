@@ -24,6 +24,7 @@ pu_option(ENABLE_HIP "Enable HIP" OFF)
 pu_option(ENABLE_HIP_AMD "Enable HIP with AMD (ROCM)" ON)
 pu_option(ENABLE_SHARED_LIB "Enable shared library" ON)
 pu_option(ENABLE_PYTHON_INTERFACE "Enable the python interface" OFF)
+pu_option(ENABLE_TESTS "Enable testing" ON)
 include(CTest)
 enable_testing()
 
