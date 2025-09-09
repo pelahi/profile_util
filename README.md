@@ -141,7 +141,17 @@ pu_option(ENABLE_HIP_AMD "Enable HIP with AMD (ROCM)" ON)
 pu_option(PU_ENABLE_SHARED_LIB "Enable shared library" ON)
 ```
 
-Note that the HIP support does assume at a low level that `rocm-smi` exists for some of the profiling information but can be compiled to support HIP calling CUDA so long as the `_HIP_PLATFORM_AMD_` is appropriately *NOT* defined. However, we recommend just building the CUDA version in such circumstances
+Note that the HIP support does assume at a low level that `rocm-smi` exists for some of the profiling information but can be compiled to support HIP calling CUDA so long as the `_HIP_PLATFORM_AMD_` is appropriately *NOT* defined. However, we recommend just building the CUDA version in such circumstances. 
+
+To build HIP with MPI we recommend 
+```bash
+    cmake -DCMAKE_CXX_COMPILER=<mpicxx> -DPU_ENABLE_HIP=ON -DCMAKE_HIP_FLAGS=<mpicxx-flags> -DCMAKE_HIP_ARCHITECTURES=<appropriate-hip-arch> ../
+```
+
+To build CUDA with MPI we recommend 
+```bash
+    cmake -DCMAKE_CXX_COMPILER=<mpicxx> -DPU_ENABLE_CUDA=ON -DCMAKE_HIP_FLAGS=<mpicxx-flags> -DCMAKE_HIP_ARCHITECTURES=<appropriate-cuda-arch> ../
+```
 
 ### Bash/Make
 The library comes with some bash scripts `build_cpu.sh`, `build_cuda.sh`, and `build_hip.sh`. These scripts call a simple Makefile which builds a variety of different versions of the libraries. For instance `build_cpu.sh` will build cpu-only (no gpu) versions of the library:

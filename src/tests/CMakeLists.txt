@@ -8,6 +8,12 @@ set(tests
 
 foreach(test ${tests})
   add_executable(${test} ${test}.cpp)
+  if (PU_ENABLE_HIP)
+    set_source_files_properties(${test}.cpp PROPERTIES LANGUAGE HIP)
+  elseif (PU_ENABLE_CUDA)
+    set_source_files_properties(${test}.cpp PROPERTIES LANGUAGE CUDA)
+  endif()
+
   target_link_libraries(${test} profile_util ${PU_LIBS})
   if (PU_LINK_FLAGS)
     set_target_properties(${test} PROPERTIES LINK_FLAGS ${PU_LINK_FLAGS})
