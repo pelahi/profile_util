@@ -134,7 +134,7 @@
 #define NewComputeSampler(t) profiling_util::ComputeSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), t, true);
 #define NewComputeSamplerHostOnly(t) profiling_util::ComputeSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), t, false);
 
-#define NewSTraceSampler(t) profiling_util::STraceSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), true, t);
+#define NewSTraceSampler(t) profiling_util::STraceSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), t, true);
 //@}
 
 #endif
