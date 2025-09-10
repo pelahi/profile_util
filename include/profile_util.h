@@ -558,7 +558,7 @@ namespace profiling_util {
         /// @param cmd command to place 
         void _place_cmd(const std::string cmd)
         {
-            auto status = std::system(cmd.c_str());
+            std::system(cmd.c_str());
         }
 
         /// @brief Place a command using std::system and threads 
@@ -568,7 +568,7 @@ namespace profiling_util {
         {
             while (!stopFlag) 
             {
-                auto status = std::system(cmd.c_str());
+                std::system(cmd.c_str());
                 usleep(sleep_time);
             }
         }

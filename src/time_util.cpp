@@ -18,7 +18,7 @@ namespace profiling_util {
         if (requests.size() == 0) return;
         std::string s;
         std::string cmd;
-        for (auto i=0;i<requests.size();i++) 
+        for (size_t i=0;i<requests.size();i++) 
         {
             auto req = requests[i];
             auto fname = fnames[i];
@@ -101,7 +101,7 @@ namespace profiling_util {
                 std::string(pu_gpu_mem_request(nDevices)),
                 std::string(pu_gpu_memusage_request(nDevices))
             };
-            for (auto i=0;i<s_gpu_requests.size();i++) 
+            for (size_t i=0;i<s_gpu_requests.size();i++) 
             {
                 auto req = s_gpu_requests[i];
                 auto s_gpu = std::string(pu_gpuMonitorCmd) + " " + req + " " + std::string(pu_gpu_formating(nDevices));
@@ -253,7 +253,7 @@ namespace profiling_util {
         std::vector<std::string> plist = {"Usage", "Memory Usage", "Power"};
         std::vector<std::string> ulist = {"%", "%", "%"};
         report << "GPU Statistics || ";
-        for (auto i=0;i<flist.size();i++) 
+        for (size_t i=0;i<flist.size();i++) 
         {
             std::vector<double> content(std::move(s.GetSamplingData(flist[i])));
             for (auto j=0;j<n;j++) {

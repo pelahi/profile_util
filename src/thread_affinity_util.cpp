@@ -211,13 +211,14 @@ namespace profiling_util {
         size = recvcounts[0];
         offsets[0] = 0;
         for (auto i=1;i<NProcs;i++) {size += recvcounts[i]; offsets[i] = offsets[i-1] + recvcounts[i-1];}
-        char newbindingreport[size];
+        char *newbindingreport = new char[size];
         auto p2 = binding_report.c_str();
         MPI_Allgatherv(p2, binding_report.length(), MPI_CHAR,
                 newbindingreport, recvcounts.data(), offsets.data(), MPI_CHAR,
                 MPI_COMM_WORLD);
         newbindingreport[size-1] = '\0';
         binding_report = std::string(newbindingreport);
+        free(newbindingreport);
 #endif
         
         return binding_report;
@@ -231,7 +232,7 @@ namespace profiling_util {
         memset(clbuf, 0, sizeof(clbuf));
         memset(hnbuf, 0, sizeof(hnbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
-        result = "Thread affinity report : ";//@ " + func + " "+file+":L" + line + " : ";
+        result = "Thread affinity report @ " + func + " " + file + ":L" + line + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);
         cpuset_to_cstr(&coremask, clbuf);
         int thread = 0, level = 1;
@@ -262,7 +263,7 @@ namespace profiling_util {
         memset(hnbuf, 0, sizeof(hnbuf));
         memset(clbuf, 0, sizeof(clbuf));
         (void)gethostname(hnbuf, sizeof(hnbuf));
-        result = "Thread affinity report : ";//@ " + func + " "+file+":L" + line + " : ";
+        result = "Thread affinity report @ " + func + " " + file + ":L" + line + " : ";
         result += "::\t On node " + std::string(hnbuf) + " : ";
         result += "MPI Rank " + std::to_string(ThisTask) + " : ";
         (void)sched_getaffinity(0, sizeof(coremask), &coremask);

@@ -350,7 +350,7 @@ namespace profiling_util {
         auto append_memory_stats = [&memory_report](const char *name, const size_t &stat) {
             memory_report << name << ": " << memory_amount(stat);
         };
-        memory_report << "Memory report @ " << function << " L"<<line_num <<" : ";
+        memory_report << "Memory report @ " << function << " " << file <<":L"<<line_num <<" : ";
         append_memory_stats("Total ", sys_mem.total);memory_report << "; ";
         append_memory_stats("Used  ", sys_mem.used);memory_report << "; ";
         append_memory_stats("Free  ", sys_mem.free);memory_report << "; ";
