@@ -25,6 +25,7 @@ pu_option(ENABLE_HIP_AMD "Enable HIP with AMD (ROCM)" ON)
 pu_option(ENABLE_SHARED_LIB "Enable shared library" ON)
 pu_option(ENABLE_PYTHON_INTERFACE "Enable the python interface" OFF)
 pu_option(ENABLE_TESTS "Enable testing" ON)
+pu_option(ENABLE_C_API "Enable C api" OFF)
 include(CTest)
 enable_testing()
 
@@ -45,6 +46,11 @@ pu_openmp()
 pu_pybind()
 
 add_compile_options(-Wall -Wextra -Wpedantic -fPIC)
+if (PU_ENABLE_C_API)
+   message(STATUS "Enabling C API support")
+   add_compile_definitions(ENABLE_C_API)
+   enable_language(C)
+endif()
 #
 # Add git revision information in a generated .cpp file, which we then include
 # as part of the library
