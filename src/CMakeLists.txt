@@ -6,7 +6,7 @@ set(PU_SOURCES
     thread_affinity_util.cpp
     time_util.cpp
     profile_util.cpp
-    c_api.cpp
+    profile_util_cinterface.cpp
 )
 
 if (PU_ENABLE_SHARED_LIB)
