@@ -1,6 +1,6 @@
 #include <profile_util_api_c.h>
 #include <stdio.h>
-#include<unistd.h>
+#include <unistd.h>
 
 #ifdef _MPI
 #include <mpi.h>
@@ -9,6 +9,10 @@
 int main(int *argc, char ***argv) {
 #ifdef _MPI
     MPI_Init(argc, argv);
+#endif
+#ifdef _MPI
+    MPI_Comm comm = MPI_COMM_WORLD;
+    pu_mpi_set_logging_comm(comm);
 #endif
     pu_get_version();
     pu_report_parallel_api();
