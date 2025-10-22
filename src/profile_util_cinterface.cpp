@@ -15,8 +15,18 @@ extern "C" {
     MYLIB_C_API void pu_get_version(){
         printf("%s\n", profiling_util::__version().c_str());
     };
+#ifdef _MPI
+    MYLIB_C_API void pu_mpi_set_logging_comm(MPI_Comm comm){
+        profiling_util::MPISetLoggingComm(comm);
+    };
+#endif
     MYLIB_C_API void pu_report_parallel_api(){
-        printf("%s\n", profiling_util::ReportParallelAPI().c_str());
+#ifdef _MPI
+        MPILog0ParallelAPI();
+#else
+        LogParallelAPI();
+#endif
+        // printf("%s\n", profiling_util::ReportParallelAPI().c_str());
     };
     MYLIB_C_API void pu_report_binding(){
         printf("%s\n", profiling_util::ReportBinding().c_str());
