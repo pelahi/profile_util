@@ -8,6 +8,9 @@
 
 #ifdef ENABLE_C_API
 #define MYLIB_C_API __attribute__((visibility("default")))
+#ifdef _MPI
+#include <mpi.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {

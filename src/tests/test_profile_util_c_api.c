@@ -15,6 +15,9 @@ int main(int *argc, char ***argv) {
     LogThreadAffinity_c("main");
     LogMemUsage_c("main");
     LogSystemMem_c("main");
+    #ifdef _MPI
+    LogNodeSystemMem_c("main");
+    #endif
     struct Timer_c *timer = NewTimer_c("main");
     struct ComputeSampler_c *sampler = NewComputeSampler_c("main", 0.5);
     ComputeSampler_c_keepfiles(sampler, 1);

@@ -13,7 +13,7 @@
 #define _where_calling_from_c(func,file,line) std::string("@")+std::string(func)+std::string(" ")+profiling_util::__extract_filename(std::string(file))+":L"+std::to_string(line)+" "
 #define _when_calling_from_c "("+profiling_util::__when()+") : "
 #ifdef _MPI 
-#define _MPI_calling_rank_c "["+profiling_util::__comm_rank+"] "
+#define _MPI_calling_rank_c "["+std::to_string(profiling_util::__comm_rank)+"] "
 #define _log_header_c(func,file,line) _MPI_calling_rank_c+_where_calling_from_c(func,file,line)+_when_calling_from_c
 #else 
 #define _log_header_c(func,file,line) _where_calling_from_c(func,file,line)+_when_calling_from_c
@@ -60,12 +60,12 @@ extern "C" {
 #ifdef _MPI
     MYLIB_C_API void pu_report_node_system_mem(const char *func, const char *file, int line){
         std::string header = _log_header_c(func,file,line);
-        std::string __s=profiling_util::MPIReportNodeSystemMem(profiling_util::__comm, func, file, line);
+        std::string __s=profiling_util::MPIReportNodeSystemMem(profiling_util::__comm, func, file, std::to_string(line));
         if (profiling_util::__comm_rank == 0)
             printf("%s %s\n", header.c_str(), __s.c_str());
     };
 #endif
-        
+
     struct Timer_c * Timer_c_create(const char *func, const char *file, int line, int _use_device)
     {
         return reinterpret_cast<struct Timer_c*>(new profiling_util::Timer(func, file, std::to_string(line), _use_device));
