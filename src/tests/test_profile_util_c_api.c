@@ -10,14 +10,13 @@ int main(int *argc, char ***argv) {
 #ifdef _MPI
     MPI_Init(argc, argv);
 #endif
-    pu_get_version();
-    pu_report_parallel_api();
-    pu_report_binding();
-    pu_report_thread_affinity("main", __FILE__, __LINE__);
-    pu_report_mem_usage("main", __FILE__, __LINE__);
-    pu_report_system_mem("main", __FILE__, __LINE__);
-    struct Timer_c *timer = Timer_c_create("main", __FILE__, __LINE__, 1);
-    struct ComputeSampler_c *sampler = ComputeSampler_c_create("main", __FILE__, __LINE__, 0.1, 1);
+    LogParallelAPI_c("main");
+    LogBinding_c("main");
+    LogThreadAffinity_c("main");
+    LogMemUsage_c("main");
+    LogSystemMem_c("main");
+    struct Timer_c *timer = NewTimer_c("main");
+    struct ComputeSampler_c *sampler = NewComputeSampler_c("main", 0.5);
     ComputeSampler_c_keepfiles(sampler, 1);
     sleep(1); // Simulate some work
     int i,j;
@@ -29,8 +28,8 @@ int main(int *argc, char ***argv) {
         }
     }
     printf("%f\n", sum);
-    pu_report_time_taken(timer, "main", __FILE__, __LINE__);
-    pu_report_cpu_usage(sampler, "main", __FILE__, __LINE__);
+    LogTimeTaken_c(timer, "main");
+    LogCPUUsage_c(sampler, "main");
     Timer_c_destroy(timer);
     ComputeSampler_c_destroy(sampler);
 #ifdef _MPI
