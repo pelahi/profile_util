@@ -10,6 +10,10 @@ int main(int *argc, char ***argv) {
 #ifdef _MPI
     MPI_Init(argc, argv);
 #endif
+    #ifdef _MPI
+    MPI_Comm comm = MPI_COMM_WORLD;
+    pu_mpi_set_logging_comm(comm);
+    #endif
     LogParallelAPI_c("main");
     LogBinding_c("main");
     LogThreadAffinity_c("main");

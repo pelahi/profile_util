@@ -18,6 +18,7 @@ extern "C" {
 
     // Declare the function prototype with extern "C"
     MYLIB_C_API void pu_get_version();
+    MYLIB_C_API void pu_mpi_set_logging_comm(MPI_Comm comm);
     MYLIB_C_API void pu_report_parallel_api(const char *func, const char *file, int line);
     MYLIB_C_API void pu_report_binding(const char *func, const char *file, int line);
     MYLIB_C_API void pu_report_thread_affinity(const char *func, const char *file, int line);
