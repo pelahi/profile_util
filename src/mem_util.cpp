@@ -263,6 +263,7 @@ namespace profiling_util {
         int commsize, rank;
         MPI_Comm_size(comm, &commsize);
         MPI_Comm_rank(comm, &rank);
+        
         auto hostname = _gethostname();
         int size = hostname.size()+1, maxsize = 0;
         MPI_Allreduce(&size, &maxsize, 1, MPI_INTEGER, MPI_MAX, comm);
@@ -308,9 +309,13 @@ namespace profiling_util {
             namehosts.push_back(m.first);
             memhosts.push_back(m.second);
         }
-        return std::make_tuple(memory_report.str(), namehosts, memhosts);
+        auto new_report = memory_report.str();
+        auto removeNulls = [&new_report]() {
+            new_report.erase(std::remove(new_report.begin(), new_report.end(), '\0'), new_report.end());
+        };
+        removeNulls();
+        return std::make_tuple(new_report, namehosts, memhosts);
     }
-
     #endif
 
     std::string ReportSystemMem(

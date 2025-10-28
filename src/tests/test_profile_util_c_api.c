@@ -34,7 +34,7 @@ int main(int *argc, char ***argv) {
             sum += x;
         }
     }
-    printf("%f\n", sum);
+    printf("Sum = %f\n", sum);
     LogTimeTaken_c(timer, "main");
     LogCPUUsage_c(sampler, "main");
     Timer_c_destroy(timer);

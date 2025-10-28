@@ -60,7 +60,7 @@ extern "C" {
 #ifdef _MPI
     MYLIB_C_API void pu_report_node_system_mem(const char *func, const char *file, int line){
         std::string header = _log_header_c(func,file,line);
-        std::string __s=profiling_util::MPIReportNodeSystemMem(profiling_util::__comm, func, file, std::to_string(line));
+        std::string __s = profiling_util::MPIReportNodeSystemMem(profiling_util::__comm, func, file, std::to_string(line));
         if (profiling_util::__comm_rank == 0)
             printf("%s %s\n", header.c_str(), __s.c_str());
     };
