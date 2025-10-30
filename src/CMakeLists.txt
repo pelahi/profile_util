@@ -6,10 +6,15 @@ set(PU_SOURCES
     thread_affinity_util.cpp
     time_util.cpp
     profile_util.cpp
-    profile_util_cinterface.cpp
 )
 
-if (PU_ENABLE_SHARED_LIB)
+if (PU_ENABLE_C_API)
+    list(APPEND PU_SOURCES 
+    profile_util_cinterface.cpp
+    )
+endif()
+
+    if (PU_ENABLE_SHARED_LIB)
     add_library(profile_util SHARED ${PU_SOURCES})
 else()
     add_library(profile_util STATIC ${PU_SOURCES})
@@ -33,9 +38,11 @@ if (PU_ENABLE_PYTHON_INTERFACE)
     profile_util_pyinterface.cpp 
     profile_util.cpp 
     mem_util.cpp 
-    thread_affinity_util.cpp
     time_util.cpp
     "${git_revision_cpp}")
+    if (PU_ENABLE_C_API)
+        pybind11_add_module(profile_util_cinterface.cpp)
+    endif()
     #install(TARGETS profile_util DESTINATION .)
 endif()
 if (PU_ENABLE_HIP)
@@ -43,4 +50,17 @@ if (PU_ENABLE_HIP)
     set_source_files_properties(thread_affinity_util.cpp PROPERTIES LANGUAGE HIP)
     set_source_files_properties(time_util.cpp PROPERTIES LANGUAGE HIP)
     set_source_files_properties(profile_util.cpp PROPERTIES LANGUAGE HIP)
+    if (PU_ENABLE_C_API)
+        set_source_files_properties(profile_util_cinterface.cpp PROPERTIES LANGUAGE HIP)
+    endif()
+endif()
+
+if (PU_ENABLE_CUDA)
+    set_source_files_properties(mem_util.cpp PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(thread_affinity_util.cpp PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(time_util.cpp PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(profile_util.cpp PROPERTIES LANGUAGE CUDA)
+    if (PU_ENABLE_C_API)
+        set_source_files_properties(profile_util_cinterface.cpp PROPERTIES LANGUAGE CUDA)
+    endif()
 endif()

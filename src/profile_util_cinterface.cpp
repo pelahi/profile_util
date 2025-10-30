@@ -3,10 +3,10 @@
  */
 
 
+#ifdef ENABLE_C_API
 #include "profile_util_api_c.h"
 #include "profile_util.h"
 #include <cstdio>
-#ifdef ENABLE_C_API
 // the C API
 #define MYLIB_C_API __attribute__((visibility("default")))
 
