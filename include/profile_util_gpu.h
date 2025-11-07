@@ -62,10 +62,10 @@
 #ifdef __HIP_PLATFORM_AMD__
 #define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
 #define pu_gpuMonitorCmd "rocm-smi"
-#define pu_gpu_usage_request(ngpus) std::string(" --showuse --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $2}'")
-#define pu_gpu_energy_request(ngpus) std::string(" --showpower --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $2}'")
-#define pu_gpu_mem_request(ngpus) std::string(" --showmeminfo VRAM --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $3/1000.0/1000.0}'")
-#define pu_gpu_memusage_request(ngpus) std::string(" --showmeminfo VRAM --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $3/$2*100.0}'")
+#define pu_gpu_usage_request(ngpus) std::string(" --showuse --loglevel=error --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $2}'")
+#define pu_gpu_energy_request(ngpus) std::string(" --showpower --loglevel=error --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $2}'")
+#define pu_gpu_mem_request(ngpus) std::string(" --showmeminfo VRAM --loglevel=error --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $3/1000.0/1000.0}'")
+#define pu_gpu_memusage_request(ngpus) std::string(" --showmeminfo VRAM --loglevel=error --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $3/$2*100.0}'")
 #define pu_gpu_formating(ngpus) " "
 #else
 
