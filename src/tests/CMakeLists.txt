@@ -4,6 +4,7 @@
 
 set(tests
     test_profile_util
+    test_affinity
 )
 
 set(ctests
