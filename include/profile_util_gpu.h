@@ -58,6 +58,8 @@
 #define pu_gpuStream_t hipStream_t
 #define pu_gpuPeekAtLastError hipPeekAtLastError
 #define pu_gpuMemPrefetchAsync hipMemPrefetchAsync
+#define pu_gpuMemoryTypeManaged hipMemoryTypeManaged
+
 
 #ifdef __HIP_PLATFORM_AMD__
 #define pu_gpuVisibleDevices "ROCR_VISIBLE_DEVICES"
@@ -114,6 +116,7 @@ kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
 #define pu_gpuStream_t cudaStream_t
 #define pu_gpuPeekAtLastError cudaPeekAtLastError
 #define pu_gpuMemPrefetchAsync cudaMemPrefetchAsync
+#define pu_gpuMemoryTypeManaged cudaMemoryTypeManaged
 
 #define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
 #define pu_gpuMonitorCmd "nvidia-smi"
