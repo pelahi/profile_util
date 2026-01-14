@@ -40,9 +40,9 @@ int main(int argc, char *argv[])
     LogSystemMem();
 #endif
     LogMemUsage();
+    Log()<<"Starting time and compute samplers"<<std::endl;
     auto t1 = NewTimer();
     auto s1 = NewComputeSampler(0.01);
-#ifdef _GPU
     int Nentries = 100000000;
     int blocksize = 1024;
     int threadsperblock = 256;
@@ -53,10 +53,16 @@ int main(int argc, char *argv[])
     std::mt19937 gen(rd()); // seed the generator
     std::normal_distribution<> distr(0,1);
     float sum = 0;
+    Log()<<"Starting random number generation for "<<Nentries<<std::endl;
+    // CUDA too old for vector auto iteration parallelisation
+#if defined(_OPENMP) && !defined(_CUDA) 
+#pragma omp parallel for reduction(+:sum) schedule(static)
+#endif
     for (auto &x:xvec) {
         x = distr(gen);
         sum += x;
     }
+
     Log()<<Nentries<<" entries with initial sum "<<sum<<std::endl;
     int nDevices;
     std::vector<float*> xdev, ydev;
@@ -85,10 +91,14 @@ int main(int argc, char *argv[])
         Log()<<Nentries<<" entries with final sum "<<sum<<" on gpu "<<idev<<std::endl;
     }
     LogTimeTaken(tgpumem);
-#endif
 
 #ifdef _MPI
     MPI_Finalize();
 #endif 
 
 }
+<<<<<<< HEAD
+=======
+
+#endif
+>>>>>>> 264f689 (Fix for CUDA, ensure cpp files not CUDA lang)
