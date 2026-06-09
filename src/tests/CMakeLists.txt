@@ -9,6 +9,9 @@ set(tests
 set(gputests
     test_gpu
 )
+set(mpitests
+    test_mpi
+)
 
 set(ctests
     test_profile_util_c_api
@@ -25,6 +28,16 @@ foreach(test ${tests})
     set_target_properties(${test} PROPERTIES LINK_FLAGS ${PU_LINK_FLAGS})
   endif()
 endforeach()
+
+if (PU_ENABLE_MPI)
+  foreach(test ${mpitests})
+    add_executable(${test} ${test}.cpp)
+    target_link_libraries(${test} profile_util ${PU_LIBS})
+    if (PU_LINK_FLAGS)
+      set_target_properties(${test} PROPERTIES LINK_FLAGS ${PU_LINK_FLAGS})
+    endif()
+  endforeach()
+endif()
 
 if (PU_ENABLE_C_API)
   foreach(test ${ctests})
