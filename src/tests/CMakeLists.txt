@@ -10,7 +10,8 @@ set(gputests
     test_gpu
 )
 set(mpitests
-    test_mpi
+    test_mpi_comm
+    test_mpi_io
 )
 
 set(ctests

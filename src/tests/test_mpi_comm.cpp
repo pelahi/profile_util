@@ -15,7 +15,8 @@
 #include <tuple>
 #include <thread>
 #include <profile_util.h>
-
+#include <mpi.h>
+#include <getopt.h>
 
 // if want to try running code but not do any actual communication
 // #define TURNOFFMPI
@@ -36,47 +37,17 @@ int ThisTask, NProcs;
 #define USESSEND 1
 #define USEISEND 2
 
-/// usage
-void usage()
-{
-    std::cout<<"Options: "<<std::endl;
-    std::cout<<"  -s <max message size in GB> (default 1.0) "<<std::endl;
-    std::cout<<"  -i <number of iterations for each test> (default 1) "<<std::endl;
-    exit(0);
-}
-
-///routine to get arguments from command line
-void GetArgs(int argc, char *argv[], Options &opt)
-{
-    opt.othertask = NProcs/2 + 1;
-    while ((option = getopt(argc, argv, ":s:i:")) != EOF)
-    {
-        switch(option)
-        {
-            case 's':
-                opt.maxgb = atof(optarg);
-                break;
-            case 'i':
-                opt.Niter = atoi(optarg);
-                break;
-            case '?':
-                usage();
-        }
-    }
-}
-
-
 struct Options
 {
     /// what types of communication to test
     bool igather = true;
     bool ireduce = true;
     bool iscatter = true;
-    bool ibcast = false;
+    bool ibcast = true;
     bool isendrecv = true;
-    bool isendrecvsinglerank = false;
-    bool ilongdelay = false;
-    bool icorrectvalues = false;
+    bool isendrecvsinglerank = true;
+    bool ilongdelay = true;
+    bool icorrectvalues = true;
     /// root task that will get all the receives
     int roottask = 0;
     int othertask = 0;
@@ -88,6 +59,88 @@ struct Options
     int msize = 1000;
     int Niter = 1;
 };
+
+/// usage
+void usage()
+{
+    Rank0Log()<<"Options: "<<std::endl;
+    Rank0Log()<<"  -s <max message size in GB> (default 1.0) "<<std::endl;
+    Rank0Log()<<"  -i <number of iterations for each test> (default 1) "<<std::endl;
+    Rank0Log()<<"  -d <delay in seconds for long delay test> (default 600) "<<std::endl;
+    Rank0Log()<<"  -m <message size in number of doubles for long delay test> (default 1000) "<<std::endl;
+    Rank0Log()<<"  -r <root task for long delay and correct values test> (default 0) "<<std::endl;
+    Rank0Log()<<"  -o <other task for long delay test> (default NProcs/2 + 1) "<<std::endl;
+    Rank0Log()<<"  -G <1 to test gather> "<<std::endl;
+    Rank0Log()<<"  -R <1 to test reduce> "<<std::endl;
+    Rank0Log()<<"  -S <1 to test scatter> "<<std::endl;
+    Rank0Log()<<"  -B <1 to test bcast> "<<std::endl;
+    Rank0Log()<<"  -P <1 to test sendrecv> "<<std::endl;
+    Rank0Log()<<"  -p <1 to test sendrecv with single rank> "<<std::endl;
+    Rank0Log()<<"  -D <1 to test long delay> "<<std::endl;
+    Rank0Log()<<"  -C <1 to test correct values> "<<std::endl;
+
+    MPI_Finalize();
+    exit(0);
+}
+
+///routine to get arguments from command line
+void GetArgs(int argc, char *argv[], Options &opt)
+{
+    opt.othertask = NProcs/2 + 1;
+    int option;
+    while ((option = getopt(argc, argv, ":s:i:d:m:r:o:G:R:S:B:p:P:D:C:")) != EOF)
+    {
+        switch(option)
+        {
+            case 's':
+                opt.maxgb = atof(optarg);
+                break;
+            case 'i':
+                opt.Niter = atoi(optarg);
+                break;
+            case 'd':
+                opt.delay = atoi(optarg);
+                break;
+            case 'm':
+                opt.msize = atoi(optarg);
+                break;
+            case 'r':
+                opt.roottask = atoi(optarg);
+                break;
+            case 'o':
+                opt.othertask = atoi(optarg);
+                break;
+            case 'G':
+                opt.igather = atoi(optarg);
+                break;
+            case 'R':
+                opt.ireduce = atoi(optarg);
+                break;
+            case 'S':
+                opt.iscatter = atoi(optarg);
+                break;
+            case 'B':
+                opt.ibcast = atoi(optarg);
+                break;
+            case 'P':
+                opt.isendrecv = atoi(optarg);
+                break;
+            case 'p':
+                opt.isendrecvsinglerank = atoi(optarg);
+                break;
+            case 'D':
+                opt.ilongdelay = atoi(optarg);
+                break;
+            case 'C':
+                opt.icorrectvalues = atoi(optarg);
+                break;
+            case '?':
+                usage();
+                break;
+        }
+    }
+}
+
 
 std::tuple<int,
     std::vector<MPI_Comm> ,
@@ -588,7 +641,7 @@ void MPITestCorrectSendRecv(Options &opt)
             int mpi_err;
             Log()<<" receiving from "<<itask<<std::endl;
             mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, MPI_COMM_WORLD, &status);
-            Log()<<" size "<<size<<" received from "<<itask<<" with " <<mpi_err<<std::endl;
+            Log()<<" size "<<size<<" received from "<<itask<<" with MPI error " <<mpi_err<<std::endl;
             if (size != oldsize) {
                 Log()<<" GOT WRONG SIZE VALUE from "<<itask<<std::endl;
                 MPI_Abort(MPI_COMM_WORLD,8);
@@ -607,7 +660,7 @@ void MPITestCorrectSendRecv(Options &opt)
 
             std::string s;
             for (auto &d:data) s+=std::to_string(d) + " ";
-            Log()<<" received from "<<itask<<" with "<<mpi_err<<std::endl;
+            Log()<<" received from "<<itask<<" with MPI error " <<mpi_err<<std::endl;
         }
     }
     else {
@@ -682,6 +735,7 @@ int main(int argc, char **argv) {
     MPI_Comm_rank(comm, &ThisTask);
     MPISetLoggingComm(comm);
     Options opt;
+    GetArgs(argc, argv, opt);
 
     Rank0Log()<<"Starting job "<<std::endl;
     MPILog0Version();
@@ -689,18 +743,6 @@ int main(int argc, char **argv) {
     MPILog0Binding();
     MPILog0NodeSystemMem();
     MPI_Barrier(comm);
-
-    GetArgs(argc, argv, opt);
-    // if (argc >= 2) opt.maxgb = atof(argv[1]);
-    // if (argc == 3) opt.Niter = atof(argv[2]);
-    // // if (argc >= 2) opt.delay = atoi(argv[1]);
-    // // if (argc >= 3) opt.msize = atoi(argv[2]);
-    // // if (argc >= 4) opt.othertask = atoi(argv[3]);
-
-    // default value for 2 node tests assuming that same number of tasks per node 
-    // ensures that othertask is testing internode communication
-    // alter if want intranode communication to something like opt.roottask + 1;
-    opt.othertask = NProcs/2 + 1;
     
     MPILog0ParallelAPI();
     MPILog0Binding();
