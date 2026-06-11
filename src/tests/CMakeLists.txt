@@ -13,7 +13,9 @@ set(mpitests
     test_mpi_comm
     test_mpi_io
 )
-
+set(gpumpitests
+    test_gpu_mpi_comm
+)
 set(ctests
     test_profile_util_c_api
 )
@@ -33,6 +35,9 @@ endforeach()
 if (PU_ENABLE_MPI)
   foreach(test ${mpitests})
     add_executable(${test} ${test}.cpp)
+    if (PU_ENABLE_HIP)
+      set_source_files_properties(${test}.cpp PROPERTIES LANGUAGE HIP)
+    endif()
     target_link_libraries(${test} profile_util ${PU_LIBS})
     if (PU_LINK_FLAGS)
       set_target_properties(${test} PROPERTIES LINK_FLAGS ${PU_LINK_FLAGS})
@@ -58,6 +63,19 @@ endif()
 
 if (PU_ENABLE_HIP OR PU_ENABLE_CUDA)
   foreach(test ${gputests})
+    add_executable(${test} ${test}.cpp)
+    if (PU_ENABLE_HIP)
+      set_source_files_properties(${test}.cpp PROPERTIES LANGUAGE HIP)
+    endif()
+    target_link_libraries(${test} profile_util ${PU_LIBS})
+    if (PU_LINK_FLAGS)
+      set_target_properties(${test} PROPERTIES LINK_FLAGS ${PU_LINK_FLAGS})
+    endif()
+  endforeach()
+endif()
+
+if (PU_ENABLE_MPI AND (PU_ENABLE_HIP OR PU_ENABLE_CUDA))
+  foreach(test ${gpumpitests})
     add_executable(${test} ${test}.cpp)
     if (PU_ENABLE_HIP)
       set_source_files_properties(${test}.cpp PROPERTIES LANGUAGE HIP)
