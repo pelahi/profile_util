@@ -1,3 +1,9 @@
+/*! 
+    \file test_affinity.cpp
+    \brief Test CPU affinity settings using the profiling utility library.
+    \details This test initializes the profiling utility and verifies CPU affinity settings.
+*/
+
 #include <profile_util.h>
 
 int main(int argc, char *argv[])

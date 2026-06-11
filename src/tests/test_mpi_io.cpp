@@ -1,3 +1,9 @@
+/*!
+    \file test_mpi_io.cpp
+    \brief Test MPI I/O performance and memory footprint.
+    \details This test performs collective and non-collective MPI I/O operations 
+*/
+
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -12,6 +18,45 @@
 
 
 int ThisTask, NProcs;
+#define Rank0Log() if (ThisTask==0) Log()
+
+struct Options
+{
+    size_t msize = 1000;
+    std::string basefilename = "mpi-io";
+};
+
+/// usage
+void usage()
+{
+    Rank0Log()<<"Options: "<<std::endl;
+    Rank0Log()<<"  -f <base filename> (default mpi-io) "<<std::endl;
+    Rank0Log()<<"  -n <message size in number of ints> (default 100) "<<std::endl;
+    MPI_Finalize();
+    exit(0);
+}
+
+///routine to get arguments from command line
+void GetArgs(int argc, char *argv[], Options &opt)
+{
+    int option;
+    while ((option = getopt(argc, argv, ":f:n:")) != EOF)
+    {
+        switch(option)
+        {
+            case 'f':
+                opt.basefilename = std::string(optarg);
+                break;
+            case 'n':
+                opt.msize = atoll(optarg);
+                break;
+            case '?':
+                usage();
+                break;
+        }
+    }
+}
+
 #define Rank0Log() if (ThisTask==0) Log()
 
 void WriteCollective(MPI_Comm &comm, std::string &fnamebase, size_t numints=100) {
@@ -41,7 +86,7 @@ void WriteCollective(MPI_Comm &comm, std::string &fnamebase, size_t numints=100)
 }
 
 void WriteNonCollective(MPI_Comm &comm, std::string &fnamebase, size_t numints=100) {
-    size_t bytes_written = NProcs * numints * sizeof(int);
+    size_t bytes_written =  numints * sizeof(int);
     std::string fname=fnamebase+std::string(".non-collective.example.txt");
     Rank0Log()<<" Starting non-collective binary write to "<<bytes_written<<" bytes to "<<fname<<std::endl;
     MPI_File file;
@@ -58,9 +103,9 @@ void WriteNonCollective(MPI_Comm &comm, std::string &fnamebase, size_t numints=1
     // Calculate the offset based on the rank
     offset = ThisTask * numints*sizeof(int);
     // Write to the file using non-collective I/O
-    MPI_File_write_at(file, offset, buffer.data(), 50, MPI_INT, &status);
+    MPI_File_write_at(file, offset, buffer.data(), numints/2, MPI_INT, &status);
     // Write to the file again using non-collective I/O
-    MPI_File_write_at(file, offset + sizeof(int)*50, buffer.data() + 50, 50, MPI_INT, &status);
+    MPI_File_write_at(file, offset + sizeof(int)*numints/2, buffer.data() + numints/2, numints/2, MPI_INT, &status);
 
     // Close the file
     MPI_File_close(&file);
@@ -76,10 +121,8 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(comm, &ThisTask);
     MPI_Comm_size(comm, &NProcs);
     MPISetLoggingComm(comm);
-    std::string fname = "mpi-io";
-    if (argc >= 2) fname = std::string(argv[1]);
-    size_t numints = 100;
-    if (argc >= 3) numints = std::stoul(argv[2]);
+    Options opt;
+    GetArgs(argc, argv, opt);
 
     Rank0Log()<<"Starting job "<<std::endl;
     MPILog0Version();
@@ -89,8 +132,8 @@ int main(int argc, char *argv[]) {
     MPI_Barrier(comm);
 
     // trial some writes 
-    WriteCollective(comm,fname, numints);
-    WriteNonCollective(comm,fname, numints);
+    WriteCollective(comm,opt.basefilename, opt.msize);
+    WriteNonCollective(comm,opt.basefilename, opt.msize);
 
     // finish job
     Rank0Log()<<"Ending job"<<std::endl;
