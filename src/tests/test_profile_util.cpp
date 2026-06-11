@@ -1,3 +1,9 @@
+/*! 
+    \file test_profile_util.cpp
+    \brief Test the C++ API of the profiling utility library.
+    \details This test initializes the profiling utility, performs some dummy computations while logging various metrics (
+*/
+
 #include <array>
 #include <iostream>
 #include <numeric>

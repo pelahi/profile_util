@@ -1,6 +1,11 @@
+/*!
+    \file test_profile_util_c_api.c
+    \brief Test the C API of the profiling utility library.
+    \details This test initializes the profiling utility, performs some dummy computations while logging various metrics (
+*/
 #include <profile_util_api_c.h>
 #include <stdio.h>
-#include<unistd.h>
+#include <unistd.h>
 
 #ifdef _MPI
 #include <mpi.h>

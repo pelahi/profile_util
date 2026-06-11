@@ -1,5 +1,10 @@
+/*!
+    \file test_gpu.cpp
+    \brief Test GPU profiling and computation using the profiling utility library.
+    \details This test initializes the profiling utility, performs vector addition on the GPU while logging various metrics, and verifies the results.
+*/
+
 #include "profile_util_gpu.h"
-#ifdef _GPU
 
 #include <vector>
 #include <random>
@@ -87,5 +92,3 @@ int main(int argc, char *argv[])
 #endif 
 
 }
-
-#endif
