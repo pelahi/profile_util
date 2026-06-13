@@ -43,6 +43,7 @@
 #define pu_gpuEventSynchronize hipEventSynchronize
 #define pu_gpuEventElapsedTime hipEventElapsedTime
 #define pu_gpuDeviceSynchronize hipDeviceSynchronize
+#define pu_gpuStreamSynchronize hipStreamSynchronize
 #define pu_gpuGetErrorString hipGetErrorString
 #define pu_gpuError_t hipError_t
 #define pu_gpuErr hipErr
@@ -100,6 +101,7 @@
 #define pu_gpuEventSynchronize cudaEventSynchronize
 #define pu_gpuEventElapsedTime cudaEventElapsedTime
 #define pu_gpuDeviceSynchronize cudaDeviceSynchronize
+#define pu_gpuStreamSynchronize cudaStreamSynchronize
 #define pu_gpuGetErrorString cudaGetErrorString
 #define pu_gpuError_t cudaError_t
 #define pu_gpuErr cudaErr
