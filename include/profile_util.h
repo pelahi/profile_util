@@ -506,9 +506,10 @@ namespace profiling_util {
 
     /// @brief get the ave, std, min, max of input vector
     /// @param input input vector
-    template <typename T> std::tuple<T,T,T,T>get_stats(std::vector<T> &input, unsigned int offset = 0, unsigned int stride = 1)
+    template <typename T> std::tuple<T,T,T,T,int>get_stats(std::vector<T> &input, unsigned int offset = 0, unsigned int stride = 1)
     {
         T ave = 0, std = 0, min = 0, max = 0;
+        int nsample = 0;
         if (input.size()>0) {
             min = max = input[offset];
             for (auto i=offset;i<input.size();i+=stride)
@@ -517,13 +518,13 @@ namespace profiling_util {
                 std += input[i]*input[i];
                 min = std::min(input[i], min);
                 max = std::max(input[i], max);
+                nsample++;
             }
-            auto n = static_cast<T>(input.size());
-            ave /= n;
-            if (n == 1) std = 0;
-            else std = sqrt(std-ave*ave*n)/(n-1.0);
+            ave /= nsample;
+            if (nsample == 1) std = 0;
+            else std = sqrt(std-ave*ave*nsample)/(nsample-1.0);
         }
-        return std::tie(ave, std, min, max);
+        return std::tie(ave, std, min, max, nsample);
     }
 
     /// @brief GeneralSampler class that runs a command as a thread and stores output
@@ -569,7 +570,7 @@ namespace profiling_util {
             while (!stopFlag) 
             {
                 std::system(cmd.c_str());
-                usleep(sleep_time);
+                std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(sleep_time)));
             }
         }
 

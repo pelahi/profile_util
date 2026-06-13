@@ -23,8 +23,8 @@ namespace profiling_util {
         version+=", git:" + profiling_util::git_sha1();
         return version; 
     }
-    template std::tuple<double, double, double, double>get_stats(std::vector<double> &input, unsigned int offset, unsigned int stride);
-    template std::tuple<float, float, float, float>get_stats(std::vector<float> &input, unsigned int offset, unsigned int stride);
+    template std::tuple<double, double, double, double, int>get_stats(std::vector<double> &input, unsigned int offset, unsigned int stride);
+    template std::tuple<float, float, float, float, int>get_stats(std::vector<float> &input, unsigned int offset, unsigned int stride);
 
     #ifdef _MPI
     static bool _PU_USING_MPI=true;
