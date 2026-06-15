@@ -246,6 +246,9 @@ int main(int argc, char *argv[])
         }
         pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
         LogGPUStatistics(sgpu);
+#ifdef _CRAY_ENERGY_COUNTERS
+        LogCrayNodeEnergy(sgpu);
+#endif
         pu_gpuErrorCheck(pu_gpuMemcpy(yvec.data(), ydev[idev], nbytes, pu_gpuMemcpyDeviceToHost));
         pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
         LogTimeTakenOnDevice(time_local);

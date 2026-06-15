@@ -26,6 +26,7 @@ pu_option(ENABLE_SHARED_LIB "Enable shared library" ON)
 pu_option(ENABLE_PYTHON_INTERFACE "Enable the python interface" OFF)
 pu_option(ENABLE_TESTS "Enable testing" ON)
 pu_option(ENABLE_C_API "Enable C api" OFF)
+pu_option(ENABLE_CRAY_ENERGY_COUNTERS "Enable Cray energy counters" OFF)
 include(CTest)
 enable_testing()
 
@@ -51,6 +52,11 @@ if (PU_ENABLE_C_API)
    add_compile_definitions(ENABLE_C_API)
    enable_language(C)
 endif()
+if (PU_ENABLE_CRAY_ENERGY_COUNTERS)
+   message(STATUS "Enabling Cray energy counter support")
+   add_compile_definitions(_CRAY_ENERGY_COUNTERS)
+endif()
+
 #
 # Add git revision information in a generated .cpp file, which we then include
 # as part of the library

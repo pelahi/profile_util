@@ -609,7 +609,9 @@ namespace profiling_util {
 #ifdef _GPU
         std::string gpu_energy_fname, gpu_usage_fname, gpu_mem_fname, gpu_memusage_fname;
 #endif
-        
+#ifdef _CRAY_ENERGY_COUNTERS
+        std::string cray_node_energy_fname;
+#endif
     public:
         ComputeSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true, bool _keep_files=false);
         ~ComputeSampler();
@@ -632,6 +634,11 @@ namespace profiling_util {
         /// @brief get file name store gpu mem used info
         /// @return filename
         std::string GetGPUMemFname(){return gpu_mem_fname;}
+#endif
+#ifdef _CRAY_ENERGY_COUNTERS
+        /// @brief get file name store node energy info on Cray EX systems
+        /// @return filename
+        std::string GetCrayNodeEnergyFname(){return cray_node_energy_fname;}
 #endif
         /// @brief return number of devices visible to sampler
         /// @return int of number of devices
@@ -688,7 +695,14 @@ namespace profiling_util {
     /// @return string of GPU energy, usage, etc
     std::string ReportGPUStatistics(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 #endif
-
+#ifdef _CRAY_ENERGY_COUNTERS
+    /// reports the GPU statistics 
+    /// @param f function where called in code, useful to provide __func__ and __LINE
+    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param l code line number where called
+    /// @return string of node energy
+    std::string ReportCrayNodeEnergy(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l);
+#endif
     class IOSampler: protected profiling_util::GeneralSampler {
 
     private:
