@@ -90,6 +90,9 @@ namespace profiling_util {
         gpu_memusage_fname = ".sampler.gpu_memusage."+std::to_string(id)+".txt";
         pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
 #endif
+#ifdef _CRAY_ENERGY_COUNTERS
+        cray_node_energy_fname = ".sampler.cray_node_energy."+std::to_string(id)+".txt";
+#endif
         std::string s_cpu = " ps -p " + std::to_string(pid) + " -o %cpu | tail -n 1";
         std::vector<std::string> requests = {s_cpu};
         std::vector<std::string> fnames = {cpu_usage_fname};
@@ -113,6 +116,11 @@ namespace profiling_util {
             fnames.push_back(gpu_memusage_fname);
         }
 #endif
+#ifdef _CRAY_ENERGY_COUNTERS
+        std::string s_cray_node_energy = "cat /sys/cray/pm_counters/energy | awk '{print $1}'";
+        requests.push_back(s_cray_node_energy);
+        fnames.push_back(cray_node_energy_fname);
+#endif
         profiling_util::ComputeSampler::_launch(requests,fnames);
     }
     profiling_util::ComputeSampler::~ComputeSampler()
@@ -128,6 +136,9 @@ namespace profiling_util {
             std::filesystem::remove(gpu_mem_fname);
             std::filesystem::remove(gpu_memusage_fname);
         }
+#endif
+#ifdef _CRAY_ENERGY_COUNTERS
+        std::filesystem::remove(cray_node_energy_fname);
 #endif
     }
 
@@ -251,8 +262,6 @@ namespace profiling_util {
         }
         return report.str();
     }
-
-
     std::string ReportGPUStatistics(profiling_util::ComputeSampler &s, 
         const std::string &function, 
         const std::string &file, 
@@ -286,7 +295,24 @@ namespace profiling_util {
         s.Restart();
         return report.str();
     }
+#endif
 
+#ifdef _CRAY_ENERGY_COUNTERS
+    std::string ReportCrayNodeEnergy(profiling_util::ComputeSampler &s, 
+        const std::string &function, 
+        const std::string &file, 
+        const std::string &line_num)
+    {
+        s.Pause();
+        std::vector<double> content(std::move(s.GetSamplingData(s.GetCrayNodeEnergyFname())));
+        s.Restart();
+        std::ostringstream report;
+        report <<_make_statistics_report_header(function, file, line_num, s.get_ref(), ns_time(s.get()));
+        float diff = content[content.size()-1] - content[0];
+        // to get node energy
+        report <<"Node Energy (J) used = " << diff;
+        return report.str();
+    }
 #endif
 
     profiling_util::STraceSampler::STraceSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device, bool _keep_files) : profiling_util::GeneralSampler(f, F, l, _sample_time_in_sec, _use_device, _keep_files)

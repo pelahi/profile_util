@@ -130,6 +130,10 @@
 #define LogGPUStatistics(sampler) Log()<<profiling_util::ReportGPUStatistics(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
 #define LoggerGPUStatistics(logger,sampler) Logger(logger)<<profiling_util::ReportGPUStatistics(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
 #endif
+#ifdef _CRAY_ENERGY_COUNTERS
+#define LogCrayNodeEnergy(sampler) Log()<<profiling_util::ReportCrayNodeEnergy(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
+#define LoggerCrayNodeEnergy(logger,sampler) Logger(logger)<<profiling_util::ReportCrayNodeEnergy(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
+#endif
 
 #define NewComputeSampler(t) profiling_util::ComputeSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), t, true);
 #define NewComputeSamplerHostOnly(t) profiling_util::ComputeSampler(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), t, false);
