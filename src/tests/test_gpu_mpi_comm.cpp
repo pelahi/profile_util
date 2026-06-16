@@ -1,3 +1,10 @@
+/*!
+    \file test_gpu_mpi_comm.cpp
+    \brief Test GPU MPI communication using different MPI communicators and message sizes, and report timing statistics.
+    \details This test initializes the profiling utility, performs GPU-to-GPU communication 
+    using MPI while logging various metrics, and verifies the results. 
+*/
+
 #include <iostream>
 #include <vector>
 #include <chrono>

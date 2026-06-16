@@ -1,7 +1,8 @@
 /*!
     \file test_gpu.cpp
     \brief Test GPU profiling and computation using the profiling utility library.
-    \details This test initializes the profiling utility, performs vector addition on the GPU while logging various metrics, and verifies the results.
+    \details This test initializes the profiling utility, performs vector addition on the GPU while logging 
+    various metrics, and verifies the results.
 */
 
 
