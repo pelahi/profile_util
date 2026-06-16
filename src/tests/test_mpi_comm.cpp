@@ -1,7 +1,9 @@
 /*! 
   \file test_mpi.cpp 
   \brief Test MPI communication performance and memory footprint. 
-  \details This test performs various MPI communication patterns (e.g., broadcast, send/recv) with different message sizes and measures the time taken for each operation. It also reports memory usage before and after communication to assess the memory footprint of MPI operations.
+  \details This test performs various MPI communication patterns (e.g., broadcast, send/recv) with different 
+  message sizes and measures the time taken for each operation. It also reports memory usage before and after 
+  communication to assess the memory footprint of MPI operations.
   \author Pascal Elahi
   
 */

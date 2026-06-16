@@ -164,3 +164,40 @@ The idea behind these scripts is to quickly build versions of the library that c
 
 ## Examples
 There are several MPI+OpenMP, OpenMP, GPU+OpenMP and GPU+MPI+OpenMP examples contained in the `examples/` directory. These can highlight how to build codes and make use of the libraries API. 
+
+
+## Tests
+The tests are located in `src/tests`. They are 
+
+### Simple tests 
+There are some simple tests of the utility and affinity. 
+
+* `test_affinity` : initializes the profiling utility and CPU affinity settings
+* `test_profile_util` : tests the profile util api, reports metrics
+* `test_profile_util_c_api` : tests the c-api (if built)
+* `test_profile.py` : test the python api (if built)
+
+### Extra tests
+There are more complex tests that check MPI communication and GPU as well. 
+
+* `test_mpi_comm` : performs various MPI communication patterns (e.g., broadcast, send/recv) with different 
+  message sizes and measures the time taken for each operation. It also reports memory usage before and after 
+  communication to assess the memory footprint of MPI operations. The checks are 
+    - `gather` : checks all gathers
+    - `reduce` : checks reduces
+    - `scatter` : checks scatter
+    - `bcast` : checks broadcast
+    - `sendrecv` : checks point-to-point send receives 
+    - `sendrecvsinglerank` : single rank doing sends
+    - `longdelay` : checks that communication will still work when a long delay is present between a send and a receive. 
+    - `correctvalues` : checks that values sent are correct.
+
+* `test_gpu` :  performs vector addition on the GPU while logging various metrics, and verifies the results. 
+  This will check energy usage and can be altered to produce computation heavy gpu compute. 
+* `test_gpu_comm` : performs GPU-to-GPU communication using MPI while logging various metrics, and verifies the results. 
+    - `cpu2gpu` :  (CPU-to-GPU) Performance 
+    - `gpu2gpu` : point-to-point send/receive performance
+    - `async_gpu2gpu` : similar to above but async 
+    - `correct` : checks that gpu2gpu is correct.
+    - `reduce` : an gpu all reduce.  
+
