@@ -57,8 +57,6 @@ void GetArgs(int argc, char *argv[], Options &opt)
     }
 }
 
-#define Rank0Log() if (ThisTask==0) Log()
-
 void WriteCollective(MPI_Comm &comm, std::string &fnamebase, size_t numints=100) {
     size_t bytes_written = NProcs * numints * sizeof(int);
     std::string fname=fnamebase+std::string(".collective.example.txt");
