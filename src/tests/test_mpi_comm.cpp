@@ -745,10 +745,6 @@ int main(int argc, char **argv) {
     MPILog0Binding();
     MPILog0NodeSystemMem();
     MPI_Barrier(comm);
-    
-    MPILog0ParallelAPI();
-    MPILog0Binding();
-    MPI_Barrier(MPI_COMM_WORLD);
     MPIRunTests(opt);
 
     Rank0Log()<<"Ending job "<<std::endl;

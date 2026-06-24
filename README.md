@@ -191,7 +191,9 @@ There are more complex tests that check MPI communication and GPU as well.
     - `sendrecvsinglerank` : single rank doing sends
     - `longdelay` : checks that communication will still work when a long delay is present between a send and a receive. 
     - `correctvalues` : checks that values sent are correct.
-
+* `test_mpi_io` : performs parallel IO test.
+* `test_mpi_compute` : performs a computation with point-to-point communication and collectives replicating 
+mpi communication pattern of some simulation codes. 
 * `test_gpu` :  performs vector addition on the GPU while logging various metrics, and verifies the results. 
   This will check energy usage and can be altered to produce computation heavy gpu compute. 
 * `test_gpu_comm` : performs GPU-to-GPU communication using MPI while logging various metrics, and verifies the results. 
