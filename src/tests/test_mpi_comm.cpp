@@ -60,6 +60,7 @@ struct Options
     /// max message size in number of doubles 
     int msize = 1000;
     int Niter = 1;
+    int delay_memorysampling = 5;
 };
 
 /// usage
@@ -69,6 +70,7 @@ void usage()
     Rank0Log()<<"  -s <max message size in GB> (default 1.0) "<<std::endl;
     Rank0Log()<<"  -i <number of iterations for each test> (default 1) "<<std::endl;
     Rank0Log()<<"  -d <delay in seconds for long delay test> (default 600) "<<std::endl;
+    Rank0Log()<<"  -j <delay in seconds of memory sampling when running some communication to observe memory leaks> (default 5) "<<std::endl;
     Rank0Log()<<"  -m <message size in number of doubles for long delay test> (default 1000) "<<std::endl;
     Rank0Log()<<"  -r <root task for long delay and correct values test> (default 0) "<<std::endl;
     Rank0Log()<<"  -o <other task for long delay test> (default NProcs/2 + 1) "<<std::endl;
@@ -297,7 +299,7 @@ void MPITestBcast(Options &opt)
 #else
             if (ThisLocalTask[j] == 0) {Log()<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
             std::vector<float> times;
-            for (auto itask=0;itask<NProcs;itask++) 
+            for (auto itask=0;itask<NProcsLocal[j];itask++) 
             {
                 for (auto iter=0;iter<opt.Niter;iter++) {
                     auto time2 = NewTimer();
@@ -697,36 +699,34 @@ void MPITestCorrectSendRecv(Options &opt)
 void MPIRunTests(Options &opt)
 {
     auto comm_all = MPI_COMM_WORLD;
-    if (opt.ilongdelay) {
-        MPITestLongDelay(opt);
-        return;
-    }
-    if (opt.icorrectvalues) {
-        MPITestCorrectSendRecv(opt);
-        return;
-    }
+    if (opt.ilongdelay) MPITestLongDelay(opt);
+    if (opt.icorrectvalues) MPITestCorrectSendRecv(opt);
     if (opt.isendrecvsinglerank) MPITestSendRecvSingleRank(opt);
     if (opt.igather) MPITestAllGather(opt);
     if (opt.iscatter) MPITestAllScatter(opt);
-    for (auto i=0;i<3;i++) {
-    if (opt.ireduce) MPITestAllReduce(opt);
-        sleep(5);
-        Rank0ReportMem();
-        MPILog0NodeMemUsage();
-        MPILog0NodeSystemMem();
-        sleep(5);
-        MPI_Barrier(MPI_COMM_WORLD);
+    if (opt.ireduce) {
+        for (auto i=0;i<3;i++) {
+            MPITestAllReduce(opt);
+            sleep(opt.delay_memorysampling);
+            Rank0ReportMem();
+            MPILog0NodeMemUsage();
+            MPILog0NodeSystemMem();
+            sleep(opt.delay_memorysampling);
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
     }
     if (opt.ibcast) MPITestBcast(opt);
 
-    for (auto i=0;i<2;i++) {
-        if (opt.isendrecv) MPITestSendRecv(opt);
-        sleep(5);
-        Rank0ReportMem();
-        MPILog0NodeMemUsage();
-        MPILog0NodeSystemMem();
-        sleep(5);
-        MPI_Barrier(MPI_COMM_WORLD);
+    if (opt.isendrecv) {
+        for (auto i=0;i<2;i++) {
+            MPITestSendRecv(opt);
+            sleep(opt.delay_memorysampling);
+            Rank0ReportMem();
+            MPILog0NodeMemUsage();
+            MPILog0NodeSystemMem();
+            sleep(opt.delay_memorysampling);
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
     }
 }
 
