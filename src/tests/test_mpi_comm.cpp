@@ -21,8 +21,8 @@
 #include <getopt.h>
 
 // if want to try running code but not do any actual communication
-// #define TURNOFFMPI
-#define MEMFOOTPRINTTEST
+// // #define TURNOFFMPI
+// #define MEMFOOTPRINTTEST
 
 int ThisTask, NProcs;
 
@@ -50,6 +50,8 @@ struct Options
     bool isendrecvsinglerank = true;
     bool ilongdelay = true;
     bool icorrectvalues = true;
+    bool imemoryfootprint = true;
+    bool inompiformemtest = false;
     /// root task that will get all the receives
     int roottask = 0;
     int othertask = 0;
@@ -61,6 +63,7 @@ struct Options
     int msize = 1000;
     int Niter = 1;
     int delay_memorysampling = 5;
+
 };
 
 /// usage
@@ -82,7 +85,8 @@ void usage()
     Rank0Log()<<"  -p <1 to test sendrecv with single rank> "<<std::endl;
     Rank0Log()<<"  -D <1 to test long delay> "<<std::endl;
     Rank0Log()<<"  -C <1 to test correct values> "<<std::endl;
-
+    Rank0Log()<<"  -M <1 to test memory footprint> "<<std::endl;
+    Rank0Log()<<"  -N <1 to test NOMPI for memory test> [default false]"<<std::endl;
     MPI_Finalize();
     exit(0);
 }
@@ -92,7 +96,7 @@ void GetArgs(int argc, char *argv[], Options &opt)
 {
     opt.othertask = NProcs/2 + 1;
     int option;
-    while ((option = getopt(argc, argv, ":s:i:d:j:m:r:o:G:R:S:B:p:P:D:C:")) != EOF)
+    while ((option = getopt(argc, argv, ":s:i:d:j:m:r:o:G:R:S:B:p:P:D:C:M:N:")) != EOF)
     {
         switch(option)
         {
@@ -140,6 +144,12 @@ void GetArgs(int argc, char *argv[], Options &opt)
                 break;
             case 'C':
                 opt.icorrectvalues = atoi(optarg);
+                break;
+            case 'M':
+                opt.imemoryfootprint = atoi(optarg);
+                break;
+            case 'N':
+                opt.inompiformemtest = atoi(optarg);
                 break;
             case '?':
                 usage();
@@ -298,8 +308,8 @@ void MPITestBcast(Options &opt)
         auto time1 = NewTimer();
         for (auto j=0;j<mpi_comms.size();j++) 
         {
-#ifdef TURNOFFMPI
-#else
+            // if not doing mpi in order to check memory footprint, then skip the actual communication
+            if (opt.inompiformemtest) continue;
             if (ThisLocalTask[j] == 0) {Log()<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
             std::vector<float> times;
             for (auto itask=0;itask<NProcsLocal[j];itask++) 
@@ -312,7 +322,6 @@ void MPITestBcast(Options &opt)
                 }
             }
             MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
-#endif
         }
         if (ThisTask==0) LogTimeTaken(time1);
     }
@@ -361,23 +370,23 @@ void MPITestSendRecvSingleRank(Options &opt)
                 {
                     auto time1 = NewTimer();
                     MPI_Sendrecv(p1, sizeofsends[i], MPI_DOUBLE, itask, itask, 
-                        p2, sizeofsends[i], MPI_DOUBLE, itask, itask, MPI_COMM_WORLD, &stat);
+                        p2, sizeofsends[i], MPI_DOUBLE, itask, itask, comm_all, &stat);
                     auto timetaken = profiling_util::GetTimeTaken(time1, __func__, __FILE__, std::to_string(__LINE__));
                     // times.push_back(timetaken);
                     messages.push_back(std::to_string(itask) + ": " + std::to_string(timetaken));
                 }
                 else if (itask == ThisTask) {
                     MPI_Sendrecv(p1, sizeofsends[i], MPI_DOUBLE, opt.roottask, itask, 
-                        p2, sizeofsends[i], MPI_DOUBLE, opt.roottask, itask, MPI_COMM_WORLD, &stat);
+                        p2, sizeofsends[i], MPI_DOUBLE, opt.roottask, itask, comm_all, &stat);
                 }
             }
         }
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_all);
         if (ThisTask == opt.roottask) {
             Log()<<"MPI Comm="<<commsname<<" @"<<__func__<<":L"<<std::to_string(__LINE__)<<" - message size="<<sizeofsends[i]<<" timing in microseconds from "<<opt.roottask<<" to "<<std::endl;
             for (auto &m:messages) std::cout<<"\t"<<m<<std::endl;
         }
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_all);
     }
     senddata.clear();
     senddata.shrink_to_fit();
@@ -399,13 +408,11 @@ void MPITestSendRecv(Options &opt)
     // now allreduce 
     mpifunc = "sendrecv";
     LogMPITest();
-#ifdef MEMFOOTPRINTTEST
-    {
-        auto i = sizeofsends.size()-1;
-#else 
     for (auto i=0;i<sizeofsends.size();i++) 
     {
-#endif
+        // if checking memory footprint, then only do the largest message size 
+        if (opt.imemoryfootprint && i<sizeofsends.size()-1) continue;
+
         auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
         LogMPIAllComm();
         senddata.resize(sizeofsends[i]);
@@ -416,16 +423,18 @@ void MPITestSendRecv(Options &opt)
         for (auto &d:senddata) d = pow(2.0,ThisTask);
         p1 = senddata.data();
         p2 = receivedata.data();
-#ifdef MEMFOOTPRINTTEST
-        Rank0Log()" tasks sleeping after allocating memory"<<std::endl;
-        sleep(10);
-        MPI_Barrier(MPI_COMM_WORLD);
-#endif
+        // check the memory
+        if (opt.imemoryfootprint) {
+            Rank0Log()" tasks sleeping after allocating memory"<<std::endl;
+            sleep(10);
+            MPI_Barrier(comm_all);
+        }
         auto time1 = NewTimer();
         for (auto j=0;j<mpi_comms.size();j++)
         {
-#ifdef TURNOFFMPI
-#else
+            // if not doing mpi in order to check memory footprint, then skip the actual communication
+            if (opt.inompiformemtest) continue;
+
             if (ThisLocalTask[j] == 0) {Log()<<"Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
             std::vector<float> times;
             for (auto iter=0;iter<opt.Niter;iter++) {
@@ -467,9 +476,8 @@ void MPITestSendRecv(Options &opt)
                 auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
                 times.insert(times.end(), times_tmp.begin(), times_tmp.end());
             }
-            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(comm_all);
             MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
-#endif
         }
         if (ThisTask==0) LogTimeTaken(time1);
     }
@@ -479,7 +487,7 @@ void MPITestSendRecv(Options &opt)
     receivedata.shrink_to_fit();
     MPIFreeComms(mpi_comms, mpi_comms_name);
     Rank0ReportMem();
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPIFreeComms(mpi_comms, mpi_comms_name);
 }
 
 
@@ -507,20 +515,19 @@ void MPITestAllReduce(Options &opt)
     // now allreduce 
     mpifunc = "allreduce";
     LogMPITest();
-#ifdef TURNOFFMPI
-    data.resize(sizeofsends[sizeofsends.size()-1]);
-    allreducesum.resize(sizeofsends[sizeofsends.size()-1]);
-    for (auto &d:data) d = pow(2.0,ThisTask);
-    sleep(10);
-    for (auto &d:allreducesum) d = pow(2.0,ThisTask);
-#endif
-#ifdef MEMFOOTPRINTTEST
-    {
-        auto i = sizeofsends.size()-1;
-#else 
+    // if no mpi, do some allocation and get sum
+    if (opt.inompiformemtest) {
+        data.resize(sizeofsends[sizeofsends.size()-1]);
+        allreducesum.resize(sizeofsends[sizeofsends.size()-1]);
+        for (auto &d:data) d = pow(2.0,ThisTask);
+        sleep(10);
+        for (auto &d:allreducesum) d = pow(2.0,ThisTask);
+    }
     for (auto i=0;i<sizeofsends.size();i++) 
     {
-#endif
+        // if just checking memory footprint, then only do the largest message size
+        if (opt.imemoryfootprint && i<sizeofsends.size()-1) continue;
+
         auto sendsize = sizeofsends[i]*sizeof(double)/1024./1024./1024.;
         LogMPIAllComm();
         data.resize(sizeofsends[i]);
@@ -531,16 +538,18 @@ void MPITestAllReduce(Options &opt)
         for (auto &d:data) d = pow(2.0,ThisTask);
         p1 = data.data();
         p2 = allreducesum.data();
-#ifdef MEMFOOTPRINTTEST
-        Rank0Log()<<" tasks sleeping after allocating memory"<<std::endl;
-        sleep(10);
-        MPI_Barrier(MPI_COMM_WORLD);
-#endif
+        // if checking memory footprint, then sleep for a while to check memory usage
+        if (opt.imemoryfootprint) {
+            Rank0Log()<<" tasks sleeping after allocating memory"<<std::endl;
+            sleep(10);
+            MPI_Barrier(comm_all);
+        }
         auto time1 = NewTimer();
         for (auto j=0;j<mpi_comms.size();j++) 
         {
-#ifdef TURNOFFMPI
-#else
+            // if not doing mpi in order to check memory footprint, then skip the actual communication
+            if (opt.inompiformemtest) continue;
+
             if (ThisLocalTask[j] == 0) {Log()<<"Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
             std::vector<float> times;
             for (auto iter=0;iter<opt.Niter;iter++) {
@@ -555,7 +564,6 @@ void MPITestAllReduce(Options &opt)
             sleep(2);
             MPI_Barrier(MPI_COMM_WORLD);
             MPIReportTimeStats(times, mpi_comms_name[j], std::to_string(sizeofsends[i]), __func__, std::to_string(__LINE__));
-#endif
         }
         if (ThisTask==0) LogTimeTaken(time1);
     }
@@ -563,9 +571,8 @@ void MPITestAllReduce(Options &opt)
     data.shrink_to_fit();
     allreducesum.clear();
     allreducesum.shrink_to_fit();
-    MPIFreeComms(mpi_comms, mpi_comms_name);
     Rank0ReportMem();
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPIFreeComms(mpi_comms, mpi_comms_name);
 }
 //@}
 
@@ -577,17 +584,19 @@ void MPITestAllReduce(Options &opt)
 void MPITestLongDelay(Options &opt) 
 {
     
-    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Status status;
+    MPI_Request request[2];
     auto comm_all = MPI_COMM_WORLD;
     std::string mpifunc;
     unsigned long size = opt.msize;
     std::vector<double> data(size);
     void * p1 = nullptr, *p2 = nullptr;
 
+    MPI_Barrier(comm_all);
     mpifunc = "longdelay";
     for (auto &d:data) d = pow(2.0,ThisTask);
     auto time1 = NewTimer();
+    Rank0Log()<<" running "<<mpifunc<<" with a delay of "<<opt.delay<<" seconds between send and receive"<<std::endl;
 
     if (ThisTask != opt.othertask) sleep(opt.delay);
     if (ThisTask == opt.roottask) 
@@ -597,11 +606,11 @@ void MPITestLongDelay(Options &opt)
             if (itask == opt.roottask) continue;
             int mpi_err;
             Log()<<" receiving from "<<itask<<std::endl;
-            mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, MPI_COMM_WORLD, &status);
+            mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, comm_all, &status);
             Log()<<" size "<<size<<" received from "<<itask<<" with mpi return of " <<mpi_err<<std::endl;
             data.resize(size);
             p1 = data.data();
-            mpi_err = MPI_Recv(p1, size, MPI_DOUBLE, itask, 0, MPI_COMM_WORLD, &status);
+            mpi_err = MPI_Recv(p1, size, MPI_DOUBLE, itask, 0, comm_all, &status);
             Log()<<" received from "<<itask<<" with mpi return of "<<mpi_err<<std::endl;
         }
     }
@@ -611,8 +620,8 @@ void MPITestLongDelay(Options &opt)
         size = data.size();
         p1 = data.data();
         if (opt.usesend == USESEND) {
-            mpi_err = MPI_Send(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
-            mpi_err = MPI_Send(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Send(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, comm_all);
+            mpi_err = MPI_Send(p1, size, MPI_DOUBLE, opt.roottask, 0, comm_all);
         }
         else if (opt.usesend == USEISEND) 
         {
@@ -623,10 +632,10 @@ void MPITestLongDelay(Options &opt)
         }
         else if (opt.usesend == USESSEND) 
         {
-            mpi_err = MPI_Ssend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
-            mpi_err = MPI_Ssend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Ssend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, comm_all);
+            mpi_err = MPI_Ssend(p1, size, MPI_DOUBLE, opt.roottask, 0, comm_all);
         }
-        Log()<<" sent to "<<opt.roottask<<" with "<<mpi_err<<std::endl;
+        Log()<<" sent to "<<opt.roottask<<" with MPI error "<<mpi_err<<std::endl;
     }
     if (ThisTask==0) LogTimeTaken(time1);
     data.clear();
@@ -637,13 +646,14 @@ void MPITestLongDelay(Options &opt)
 /// Test whether the MPI interface sends the correct data 
 void MPITestCorrectSendRecv(Options &opt) 
 {
-    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Status status;
+    MPI_Request request[2];
     auto comm_all = MPI_COMM_WORLD;
     std::string mpifunc;
     unsigned long size = 5;
     std::vector<double> data(size);
     void * p1 = nullptr, *p2 = nullptr;
+    MPI_Barrier(comm_all);
 
     mpifunc = "correct values";
     for (auto &d:data) d = pow(2.0,ThisTask);
@@ -656,21 +666,21 @@ void MPITestCorrectSendRecv(Options &opt)
             if (itask == opt.roottask) continue;
             int mpi_err;
             Log()<<" receiving from "<<itask<<std::endl;
-            mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, MPI_COMM_WORLD, &status);
+            mpi_err = MPI_Recv(&size, 1, MPI_UNSIGNED_LONG, itask, 0, comm_all, &status);
             Log()<<" size "<<size<<" received from "<<itask<<" with MPI error " <<mpi_err<<std::endl;
             if (size != oldsize) {
                 Log()<<" GOT WRONG SIZE VALUE from "<<itask<<std::endl;
-                MPI_Abort(MPI_COMM_WORLD,8);
+                MPI_Abort(comm_all,8);
             }
             data.resize(size);
             p1 = data.data();
-            mpi_err = MPI_Recv(p1, size, MPI_DOUBLE, itask, 0, MPI_COMM_WORLD, &status);
+            mpi_err = MPI_Recv(p1, size, MPI_DOUBLE, itask, 0, comm_all, &status);
             std::vector<double> refdata(oldsize);
             for (auto &d:refdata) d = pow(2.0,itask);
             for (auto i=0;i<oldsize;i++) {
                 if (data[i] != refdata[i]) {
                     Log()<<" GOT WRONG data VALUE from "<<itask<<std::endl;
-                    MPI_Abort(MPI_COMM_WORLD,8);
+                    MPI_Abort(comm_all,8);
                 }
             }
 
@@ -685,8 +695,8 @@ void MPITestCorrectSendRecv(Options &opt)
         size = data.size();
         p1 = data.data();
         if (opt.usesend == USESEND) {
-            mpi_err = MPI_Send(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
-            mpi_err = MPI_Send(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Send(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, comm_all);
+            mpi_err = MPI_Send(p1, size, MPI_DOUBLE, opt.roottask, 0, comm_all);
         }
         else if (opt.usesend == USEISEND) 
         {
@@ -697,10 +707,10 @@ void MPITestCorrectSendRecv(Options &opt)
         }
         else if (opt.usesend == USESSEND) 
         {
-            mpi_err = MPI_Ssend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD);
-            mpi_err = MPI_Ssend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD);
+            mpi_err = MPI_Ssend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, comm_all);
+            mpi_err = MPI_Ssend(p1, size, MPI_DOUBLE, opt.roottask, 0, comm_all);
         }
-        Log()<<" sent to "<<opt.roottask<<" with "<<mpi_err<<std::endl;
+        Log()<<" sent to "<<opt.roottask<<" with MPI error "<<mpi_err<<std::endl;
     }
     if (ThisTask==0) LogTimeTaken(time1);
     data.clear();
@@ -725,7 +735,7 @@ void MPIRunTests(Options &opt)
             MPILog0NodeMemUsage();
             MPILog0NodeSystemMem();
             sleep(opt.delay_memorysampling);
-            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(comm_all);
         }
     }
     if (opt.ibcast) MPITestBcast(opt);
@@ -738,7 +748,7 @@ void MPIRunTests(Options &opt)
             MPILog0NodeMemUsage();
             MPILog0NodeSystemMem();
             sleep(opt.delay_memorysampling);
-            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(comm_all);
         }
     }
 }
