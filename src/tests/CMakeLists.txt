@@ -12,6 +12,7 @@ set(gputests
 set(mpitests
     test_mpi_comm
     test_mpi_io
+    test_mpi_compute
 )
 set(gpumpitests
     test_gpu_mpi_comm
