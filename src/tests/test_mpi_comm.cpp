@@ -92,7 +92,7 @@ void GetArgs(int argc, char *argv[], Options &opt)
 {
     opt.othertask = NProcs/2 + 1;
     int option;
-    while ((option = getopt(argc, argv, ":s:i:d:m:r:o:G:R:S:B:p:P:D:C:")) != EOF)
+    while ((option = getopt(argc, argv, ":s:i:d:j:m:r:o:G:R:S:B:p:P:D:C:")) != EOF)
     {
         switch(option)
         {
@@ -104,6 +104,9 @@ void GetArgs(int argc, char *argv[], Options &opt)
                 break;
             case 'd':
                 opt.delay = atoi(optarg);
+                break;
+            case 'j':
+                opt.delay_memorysampling = atoi(optarg);
                 break;
             case 'm':
                 opt.msize = atoi(optarg);
@@ -452,8 +455,15 @@ void MPITestSendRecv(Options &opt)
                 Rank0ReportMem();
                 MPILog0NodeMemUsage();
                 MPILog0NodeSystemMem();
-                MPI_Waitall(recvreqs.size(), recvreqs.data(), MPI_STATUSES_IGNORE);
-                Log()<<" Received ireceives "<<std::endl;
+                if (!recvreqs.empty()) {
+                    MPI_Waitall(static_cast<int>(recvreqs.size()), recvreqs.data(), MPI_STATUSES_IGNORE);
+                }
+
+                if (!sendreqs.empty()) {
+                    MPI_Waitall(static_cast<int>(sendreqs.size()), sendreqs.data(), MPI_STATUSES_IGNORE);
+                }
+
+                Log()<<" Completed nonblocking send/recv requests "<<std::endl;
                 auto times_tmp = MPIGatherTimeStats(time2, __func__, std::to_string(__LINE__));
                 times.insert(times.end(), times_tmp.begin(), times_tmp.end());
             }
@@ -467,6 +477,7 @@ void MPITestSendRecv(Options &opt)
     senddata.shrink_to_fit();
     receivedata.clear();
     receivedata.shrink_to_fit();
+    MPIFreeComms(mpi_comms, mpi_comms_name);
     Rank0ReportMem();
     MPI_Barrier(MPI_COMM_WORLD);
 }
@@ -595,7 +606,6 @@ void MPITestLongDelay(Options &opt)
         }
     }
     else {
-        MPI_Request request;
         int mpi_err;
         Log()<<" sending to "<<opt.roottask<<" with send type of "<<opt.usesend<<std::endl;
         size = data.size();
@@ -606,8 +616,10 @@ void MPITestLongDelay(Options &opt)
         }
         else if (opt.usesend == USEISEND) 
         {
-            mpi_err = MPI_Isend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD, &request);
-            mpi_err = MPI_Isend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD, &request);
+            MPI_Request requests[2];
+            mpi_err = MPI_Isend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD, &requests[0]);
+            mpi_err = MPI_Isend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD, &requests[1]);
+            MPI_Waitall(2, requests, MPI_STATUSES_IGNORE);
         }
         else if (opt.usesend == USESSEND) 
         {
@@ -668,7 +680,6 @@ void MPITestCorrectSendRecv(Options &opt)
         }
     }
     else {
-        MPI_Request request;
         int mpi_err;
         Log()<<" sending to "<<opt.roottask<<" with send type of "<<opt.usesend<<std::endl;
         size = data.size();
@@ -679,8 +690,10 @@ void MPITestCorrectSendRecv(Options &opt)
         }
         else if (opt.usesend == USEISEND) 
         {
-            mpi_err = MPI_Isend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD, &request);
-            mpi_err = MPI_Isend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD, &request);
+            MPI_Request requests[2];
+            mpi_err = MPI_Isend(&size, 1, MPI_UNSIGNED_LONG, opt.roottask, 0, MPI_COMM_WORLD, &requests[0]);
+            mpi_err = MPI_Isend(p1, size, MPI_DOUBLE, opt.roottask, 0, MPI_COMM_WORLD, &requests[1]);
+            MPI_Waitall(2, requests, MPI_STATUSES_IGNORE);
         }
         else if (opt.usesend == USESSEND) 
         {
