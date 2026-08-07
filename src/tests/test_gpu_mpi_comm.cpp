@@ -177,7 +177,7 @@ std::vector<unsigned long long> MPISetSize(double maxgb)
     return sizeofsends;
 }
 
-std::vector<float> MPIGatherTimeStats(profiling_util::Timer time1, std::string f, std::string l)
+std::vector<float> MPIGatherTimeStats(profiling_util::Timer &time1, std::string f, std::string l)
 {
     std::vector<float> times(NProcs);
     auto p = times.data();

@@ -164,7 +164,7 @@ void MPIFreeComms(std::vector<MPI_Comm> &mpi_comms, std::vector<std::string> &mp
     }
 }
 
-std::vector<float> MPIGatherTimeStats(profiling_util::Timer time1, std::string f, std::string l)
+std::vector<float> MPIGatherTimeStats(profiling_util::Timer &time1, std::string f, std::string l)
 {
     std::vector<float> times(NProcs);
     auto p = times.data();

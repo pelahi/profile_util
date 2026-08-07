@@ -234,7 +234,7 @@ std::vector<unsigned long long> MPISetSize(double maxgb)
     return sizeofsends;
 }
 
-std::vector<float> MPIGatherTimeStats(profiling_util::Timer time1, std::string f, std::string l)
+std::vector<float> MPIGatherTimeStats(profiling_util::Timer &time1, std::string f, std::string l)
 {
     std::vector<float> times(NProcs);
     auto p = times.data();
@@ -310,7 +310,7 @@ void MPITestBcast(Options &opt)
         {
             // if not doing mpi in order to check memory footprint, then skip the actual communication
             if (opt.inompiformemtest) continue;
-            if (ThisLocalTask[j] == 0) {Log()<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<std::endl;}
+            if (ThisLocalTask[j] == 0) {Log()<<ThisTask<<" / "<<ThisLocalTask[j]<<" : Communicating using comm "<<mpi_comms_name[j]<<" of size "<<NProcsLocal[j]<<std::endl;}
             std::vector<float> times;
             for (auto itask=0;itask<NProcsLocal[j];itask++)
             {
