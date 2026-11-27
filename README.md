@@ -152,7 +152,7 @@ To build CUDA with MPI using nvc++
 ```bash
     cmake -DCMAKE_CXX_COMPILER=nvc++ -DPU_ENABLE_CUDA=ON ../
 ```
-To build CUDA with MPI using GCC as the host compiler and nvcc for CUDA kernel compilation:
+To build CUDA with MPI using GCC as the host compiler and nvcc for CUDA kernel compilation
 ```bash
     cmake -DCMAKE_CXX_COMPILER=mpic++ -DCMAKE_CUDA_COMPILER=nvcc \
         -DCMAKE_CUDA_HOST_COMPILER="$(command -v g++)" \
