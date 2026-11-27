@@ -148,9 +148,15 @@ To build HIP with MPI we recommend
     cmake -DCMAKE_CXX_COMPILER=<mpicxx> -DPU_ENABLE_HIP=ON -DCMAKE_HIP_FLAGS=<mpicxx-flags> -DCMAKE_HIP_ARCHITECTURES=<appropriate-hip-arch> ../
 ```
 
-To build CUDA with MPI we recommend letting nvc++ handle it all 
+To build CUDA with MPI using nvc++
 ```bash
-    cmake  -DPU_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=<appropriate-cuda-arch> ../
+    cmake -DCMAKE_CXX_COMPILER=nvc++ -DPU_ENABLE_CUDA=ON ../
+```
+To build CUDA with MPI using GCC as the host compiler and nvcc for CUDA kernel compilation
+```bash
+    cmake -DCMAKE_CXX_COMPILER=mpic++ -DCMAKE_CUDA_COMPILER=nvcc \
+        -DCMAKE_CUDA_HOST_COMPILER="$(command -v g++)" \
+        -DPU_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=<appropriate-cuda-arch> ../
 ```
 
 ### Bash/Make

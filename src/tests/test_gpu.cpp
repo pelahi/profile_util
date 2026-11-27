@@ -13,38 +13,7 @@
 #include <profile_util.h>
 #include <profile_util_gpu.h>
 #include <getopt.h>
-
-
-__global__ void vec_add(const int N, const float * __restrict__ din, float * __restrict__ dout){
-    // Calculate the unique global thread index
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    if (index >= N) return;
-    dout[index] = din[index]+din[index]*index;
-}
-
-__global__ void vec_add_silly(const int N, const int Ni, const float * __restrict__ din, float * __restrict__ dout){
-    // Calculate the unique global thread index
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    if (index >= N) return;
-    for (int i=0;i<Ni;i++) {
-        dout[index] = din[index]+din[index]*index;
-    }
-}
-
-__global__ void vec_silly(const int N, const int Ni, const float * __restrict__ din, float * __restrict__ dout){
-    // Calculate the unique global thread index
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    if (index >= N) return;
-    for (int i=0;i<Ni;i++) {
-        double delta = 0;
-        if (i==0 || i==N-1) delta = din[index] ;
-        else delta = din[index]-din[index+1];  
-        dout[index] = din[index]+din[index]*index / pow(1.1,i) + sin(din[index])+din[index]*delta;
-    }
-}
+#include "test_gpu_kernels.h"
 
 
 int ThisTask=0;
@@ -192,8 +161,6 @@ int main(int argc, char *argv[])
     Log()<<"Starting time and compute samplers"<<std::endl;
     auto t1 = NewTimer();
     auto s1 = NewComputeSampler(opt.sampling_time);
-    size_t shsize = 0;
-    pu_gpuStream_t stream = 0;
     std::vector<float> xvec(opt.Nentries), yvec(opt.Nentries);
     std::random_device rd; // obtain a random number from hardware
     std::mt19937 gen(rd()); // seed the generator
@@ -226,24 +193,8 @@ int main(int argc, char *argv[])
         pu_gpuErrorCheck(pu_gpuMemcpy(xdev[idev], xvec.data(), nbytes, pu_gpuMemcpyHostToDevice));
         auto sgpu = NewComputeSampler(opt.sampling_time);
         for (auto iter=0;iter<opt.Niter;iter++) {
-            if (opt.kernel_type == 1) {
-                pu_gpuLaunchKernel(vec_add,
-                    dim3(opt.blocksize), dim3(opt.threadsperblock), 
-                    shsize, stream,
-                    opt.Nentries, xdev[idev], ydev[idev]);
-            } 
-            else if (opt.kernel_type == 2) {
-                pu_gpuLaunchKernel(vec_add_silly,
-                    dim3(opt.blocksize), dim3(opt.threadsperblock), 
-                    shsize, stream,
-                    opt.Nentries, opt.Nloop, xdev[idev], ydev[idev]);
-            }
-            else if (opt.kernel_type == 3) {
-                pu_gpuLaunchKernel(vec_silly,
-                    dim3(opt.blocksize), dim3(opt.threadsperblock), 
-                    shsize, stream,
-                    opt.Nentries, opt.Nloop, xdev[idev], ydev[idev]);
-            }
+            launch_gpu_kernel(opt.kernel_type, opt.blocksize, opt.threadsperblock,
+                opt.Nentries, opt.Nloop, xdev[idev], ydev[idev]);
         }
         pu_gpuErrorCheck(pu_gpuDeviceSynchronize());
         LogGPUStatistics(sgpu);

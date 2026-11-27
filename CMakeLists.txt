@@ -46,7 +46,7 @@ pu_openmp()
 # check for pybind 
 pu_pybind()
 
-add_compile_options(-Wall -Wextra -Wpedantic -fPIC)
+add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wall;-Wextra;-Wpedantic;-fPIC>")
 if (PU_ENABLE_C_API)
    message(STATUS "Enabling C API support")
    add_compile_definitions(ENABLE_C_API)
